@@ -17,8 +17,8 @@ function ToolbarBtn({ onClick, active, disabled, title, children }) {
       className={`
         inline-flex items-center justify-center w-8 h-8 rounded text-sm transition-colors
         ${active
-          ? 'bg-gray-900 text-white'
-          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}
+          ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
+          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'}
         ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
       `}
     >
@@ -28,7 +28,7 @@ function ToolbarBtn({ onClick, active, disabled, title, children }) {
 }
 
 function Divider() {
-  return <div className="w-px h-5 bg-gray-200 mx-1" />
+  return <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
 }
 
 const TABLE_MAX_COLS = 5
@@ -64,7 +64,6 @@ export default function Toolbar({ editor, onImageInsert }) {
     }
   }, [showTablePopover])
 
-  // Close popovers on outside click
   useEffect(() => {
     if (!showLinkPopover && !showTablePopover) return
     const handleOutside = (e) => {
@@ -113,7 +112,7 @@ export default function Toolbar({ editor, onImageInsert }) {
 
   return (
     <div className="relative">
-      <div className="sticky top-[53px] z-10 bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-0.5 flex-wrap select-none">
+      <div className="sticky top-[53px] z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-0.5 flex-wrap select-none">
 
         {/* Text format */}
         <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold (⌘B)">
@@ -174,7 +173,7 @@ export default function Toolbar({ editor, onImageInsert }) {
             onChange={(e) =>
               editor.chain().focus().updateAttributes('codeBlock', { language: e.target.value || null }).run()
             }
-            className="ml-1 text-xs border border-gray-200 rounded px-2 py-0.5 w-24 focus:outline-none focus:border-gray-400 font-mono"
+            className="ml-1 text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-0.5 w-24 focus:outline-none focus:border-gray-400 dark:focus:border-gray-400 font-mono bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200"
           />
         )}
 
@@ -191,7 +190,7 @@ export default function Toolbar({ editor, onImageInsert }) {
           </ToolbarBtn>
 
           {showLinkPopover && (
-            <div className="absolute left-0 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3 space-y-1.5 min-w-72">
+            <div className="absolute left-0 top-10 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 space-y-1.5 min-w-72">
               <div className="flex items-center gap-2">
                 <input
                   ref={linkInputRef}
@@ -200,11 +199,11 @@ export default function Toolbar({ editor, onImageInsert }) {
                   value={linkUrl}
                   onChange={(e) => { setLinkUrl(e.target.value); setLinkError(false) }}
                   onKeyDown={(e) => { if (e.key === 'Enter') applyLink(); if (e.key === 'Escape') setShowLinkPopover(false) }}
-                  className={`flex-1 text-sm border rounded px-2.5 py-1.5 focus:outline-none transition-colors ${linkError ? 'border-red-400 focus:border-red-400' : 'border-gray-200 focus:border-blue-400'}`}
+                  className={`flex-1 text-sm border rounded px-2.5 py-1.5 focus:outline-none transition-colors bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 ${linkError ? 'border-red-400 focus:border-red-400' : 'border-gray-200 dark:border-gray-600 focus:border-blue-400'}`}
                 />
                 <button
                   onMouseDown={(e) => { e.preventDefault(); applyLink() }}
-                  className="text-sm font-medium text-white bg-gray-900 px-3 py-1.5 rounded hover:bg-gray-700 transition-colors"
+                  className="text-sm font-medium text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 px-3 py-1.5 rounded hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
                 >
                   {editor.isActive('link') ? 'Update' : 'Set'}
                 </button>
@@ -238,9 +237,9 @@ export default function Toolbar({ editor, onImageInsert }) {
           </ToolbarBtn>
 
           {showTablePopover && (
-            <div className="absolute left-0 top-10 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3 flex items-center gap-2">
+            <div className="absolute left-0 top-10 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 flex items-center gap-2">
               <div className="flex items-center gap-1.5">
-                <label className="text-xs text-gray-500 whitespace-nowrap">Rows</label>
+                <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Rows</label>
                 <input
                   ref={tableRowsRef}
                   type="number"
@@ -249,11 +248,11 @@ export default function Toolbar({ editor, onImageInsert }) {
                   value={tableRows}
                   onChange={(e) => setTableRows(clampTableNum(e.target.value, TABLE_MAX_ROWS))}
                   onKeyDown={(e) => { if (e.key === 'Enter') applyTable(); if (e.key === 'Escape') setShowTablePopover(false) }}
-                  className="w-14 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400 text-center"
+                  className="w-14 text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400 text-center bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                 />
               </div>
               <div className="flex items-center gap-1.5">
-                <label className="text-xs text-gray-500 whitespace-nowrap">Cols</label>
+                <label className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Cols</label>
                 <input
                   type="number"
                   min={1}
@@ -261,12 +260,12 @@ export default function Toolbar({ editor, onImageInsert }) {
                   value={tableCols}
                   onChange={(e) => setTableCols(clampTableNum(e.target.value, TABLE_MAX_COLS))}
                   onKeyDown={(e) => { if (e.key === 'Enter') applyTable(); if (e.key === 'Escape') setShowTablePopover(false) }}
-                  className="w-14 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400 text-center"
+                  className="w-14 text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400 text-center bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                 />
               </div>
               <button
                 onMouseDown={(e) => { e.preventDefault(); applyTable() }}
-                className="text-sm font-medium text-white bg-gray-900 px-3 py-1.5 rounded hover:bg-gray-700 transition-colors whitespace-nowrap"
+                className="text-sm font-medium text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 px-3 py-1.5 rounded hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors whitespace-nowrap"
               >
                 Insert
               </button>

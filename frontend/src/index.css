@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -10,6 +11,11 @@ body {
   -webkit-font-smoothing: antialiased;
   background: #fff;
   color: #111827;
+}
+
+.dark body {
+  background: #111827;
+  color: #f3f4f6;
 }
 
 /* ── TipTap editor content styles ────────────────────────────────── */
@@ -135,6 +141,50 @@ body {
   height: 0;
 }
 
+/* ── Dark mode — TipTap editor ───────────────────────────────────── */
+.dark .ProseMirror {
+  color: #e5e7eb;
+}
+
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3,
+.dark .ProseMirror h4 {
+  color: #f3f4f6;
+}
+
+.dark .ProseMirror s { color: #9ca3af; }
+
+.dark .ProseMirror code {
+  background: #374151;
+  color: #d1d5db;
+}
+
+.dark .ProseMirror blockquote {
+  border-left-color: #4b5563;
+  color: #9ca3af;
+}
+
+.dark .ProseMirror hr { border-top-color: #374151; }
+
+.dark .ProseMirror a { color: #60a5fa; }
+.dark .ProseMirror a:hover { color: #93c5fd; }
+
+.dark .ProseMirror th {
+  border-color: #4b5563;
+  background: #1f2937;
+  color: #f3f4f6;
+}
+
+.dark .ProseMirror td {
+  border-color: #4b5563;
+  color: #e5e7eb;
+}
+
+.dark .ProseMirror p.is-editor-empty:first-child::before {
+  color: #6b7280;
+}
+
 /* ── Markdown preview — mirrors editor typography ─────────────────── */
 .preview-content {
   font-size: 1rem;
@@ -231,4 +281,44 @@ body {
 .preview-content td {
   border: 1px solid #d1d5db;
   padding: 0.5rem 0.75rem;
+}
+
+/* ── Dark mode — Markdown preview ────────────────────────────────── */
+.dark .preview-content {
+  color: #e5e7eb;
+}
+
+.dark .preview-content h1,
+.dark .preview-content h2,
+.dark .preview-content h3,
+.dark .preview-content h4 {
+  color: #f3f4f6;
+}
+
+.dark .preview-content del { color: #9ca3af; }
+
+.dark .preview-content code {
+  background: #374151;
+  color: #d1d5db;
+}
+
+.dark .preview-content blockquote {
+  border-left-color: #4b5563;
+  color: #9ca3af;
+}
+
+.dark .preview-content hr { border-top-color: #374151; }
+
+.dark .preview-content a { color: #60a5fa; }
+.dark .preview-content a:hover { color: #93c5fd; }
+
+.dark .preview-content th {
+  border-color: #4b5563;
+  background: #1f2937;
+  color: #f3f4f6;
+}
+
+.dark .preview-content td {
+  border-color: #4b5563;
+  color: #e5e7eb;
 }
