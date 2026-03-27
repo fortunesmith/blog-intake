@@ -3,6 +3,7 @@ import { ImageIcon, X } from 'lucide-react'
 
 export default function ImageInsertModal({ onInsert, onClose }) {
   const [file, setFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
   const [alt, setAlt] = useState('')
   const [dragging, setDragging] = useState(false)
   const fileInputRef = useRef(null)
@@ -12,6 +13,13 @@ export default function ImageInsertModal({ onInsert, onClose }) {
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [onClose])
+
+  useEffect(() => {
+    if (!file) { setPreviewUrl(null); return }
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
 
   const handleFile = (f) => {
     if (f && f.type.startsWith('image/')) setFile(f)
@@ -57,7 +65,7 @@ export default function ImageInsertModal({ onInsert, onClose }) {
           {file ? (
             <div className="space-y-1">
               <img
-                src={URL.createObjectURL(file)}
+                src={previewUrl}
                 alt="preview"
                 className="max-h-32 mx-auto rounded object-contain"
               />
