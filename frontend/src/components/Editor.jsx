@@ -151,6 +151,18 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
           if (!el.hasAttributes()) el.replaceWith(...Array.from(el.childNodes))
         })
 
+        // Unwrap Word internal anchor links — TOC cross-references, named anchors,
+        // file:// paths, and internal #_Toc / #_Ref hrefs all produce link marks that
+        // corrupt TipTap's selection on click. Preserve only real external links.
+        const SAFE_HREF = /^(https?:|mailto:)/i
+        div.querySelectorAll('a').forEach(el => {
+          const href = el.getAttribute('href') ?? ''
+          const hasName = el.hasAttribute('name')
+          if (hasName || !SAFE_HREF.test(href)) {
+            el.replaceWith(...Array.from(el.childNodes))
+          }
+        })
+
         // Remove colgroup/col entirely — TipTap's table model only expects tableRow children
         div.querySelectorAll('colgroup').forEach(el => el.remove())
 
@@ -200,23 +212,35 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
       },
 
       // Replace ProseMirror's coordsAtPos-based scroll with a native selection rect lookup.
-      // coordsAtPos misfires for large Word-pasted tables, snapping the viewport to the wrong
-      // position. window.getSelection().getRangeAt(0).getBoundingClientRect() is always accurate.
-      handleScrollToSelection: (_view) => {
+      // coordsAtPos misfires for any document containing code blocks with very long lines
+      // (e.g. a 200-char base64 string), causing the viewport to snap to the wrong position
+      // after a paste. All subsequent posAtCoords calls then map click coordinates to the
+      // wrong document positions, making the cursor appear to jump.
+      // If the DOM selection rect is zero (selection hasn't settled yet — e.g. during
+      // ProseMirror's own selection normalisation after paste), we return false immediately
+      // so ProseMirror can finish normalising before we touch the scroll position.
+      handleScrollToSelection: () => {
+        const sel = window.getSelection()
+        if (!sel || sel.rangeCount === 0) return false
+        const rect = sel.getRangeAt(0).getBoundingClientRect()
+        // Zero rect means the selection hasn't been committed to the DOM yet.
+        // Return false so ProseMirror's normalisation pass can complete first.
+        if (!rect.top && !rect.bottom) return false
+
         requestAnimationFrame(() => {
-          const sel = window.getSelection()
-          if (!sel || sel.rangeCount === 0) return
-          const rect = sel.getRangeAt(0).getBoundingClientRect()
-          if (!rect.top && !rect.bottom) return  // truly unrendered element
+          const s = window.getSelection()
+          if (!s || s.rangeCount === 0) return
+          const r = s.getRangeAt(0).getBoundingClientRect()
+          if (!r.top && !r.bottom) return
           const toolbar = document.querySelector('.editor-toolbar')
           const topOffset = toolbar ? toolbar.getBoundingClientRect().bottom : 106
-          if (rect.top < topOffset) {
-            window.scrollBy(0, rect.top - topOffset - 8)
-          } else if (rect.bottom > window.innerHeight - 20) {
-            window.scrollBy(0, rect.bottom - window.innerHeight + 20)
+          if (r.top < topOffset) {
+            window.scrollBy(0, r.top - topOffset - 8)
+          } else if (r.bottom > window.innerHeight - 20) {
+            window.scrollBy(0, r.bottom - window.innerHeight + 20)
           }
         })
-        return true  // always prevent the broken coordsAtPos-based default
+        return true
       },
     },
   })
