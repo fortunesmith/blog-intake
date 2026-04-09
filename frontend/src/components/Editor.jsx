@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle } from 'react'
+import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -83,6 +83,12 @@ export function clearDraft() {
 }
 
 const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, ref) {
+  // Load draft once before editor creation so TipTap initialises with the full
+  // document natively. setContent (used previously) does a full docView rebuild
+  // that causes posAtCoords to misfire on large documents — passing content here
+  // avoids that entirely.
+  const initialContent = useRef(loadDraft()?.content ?? '')
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false } }),
@@ -93,13 +99,9 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
       TableCell,
       Markdown.configure({ html: true, tightLists: true, linkify: false }),
     ],
-    content: '',
+    content: initialContent.current,
     onCreate({ editor }) {
-      const draft = loadDraft()
-      if (draft?.content) {
-        editor.commands.setContent(draft.content, false)
-      }
-      onMarkdownChange?.(editor.storage.markdown?.getMarkdown() ?? '')
+      onMarkdownChange?.(htmlTablesToGFM(editor.storage.markdown?.getMarkdown() ?? ''))
     },
     onUpdate({ editor }) {
       saveDraft({ content: editor.getJSON() })
