@@ -5,6 +5,8 @@ import {
   List, ListOrdered, Quote,
   Code, Code2,
   Link, Image, Table, Minus,
+  Rows2, Columns2, Trash2,
+  ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine,
 } from 'lucide-react'
 import ImageInsertModal from './ImageInsertModal'
 
@@ -111,8 +113,8 @@ export default function Toolbar({ editor, onImageInsert }) {
   const clampTableNum = (value, max) => Math.min(Math.max(1, Number(value) || 1), max)
 
   return (
-    <div className="relative">
-      <div className="sticky top-[53px] z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-0.5 flex-wrap select-none">
+    <>
+      <div className="editor-toolbar bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-0.5 flex-wrap select-none">
 
         {/* Text format */}
         <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold (⌘B)">
@@ -278,12 +280,55 @@ export default function Toolbar({ editor, onImageInsert }) {
         </ToolbarBtn>
       </div>
 
+      {editor.isActive('table') && (
+        <div className="flex items-center gap-0.5 px-4 py-1.5 border-t border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-gray-800 flex-wrap select-none">
+          <span className="text-xs font-medium text-gray-400 dark:text-gray-500 mr-1 flex items-center gap-1">
+            <Rows2 className="w-3.5 h-3.5" /> Rows
+          </span>
+          <ToolbarBtn onClick={() => editor.chain().focus().addRowBefore().run()} title="Add row above">
+            <ArrowUpToLine className="w-3.5 h-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn onClick={() => editor.chain().focus().addRowAfter().run()} title="Add row below">
+            <ArrowDownToLine className="w-3.5 h-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn onClick={() => editor.chain().focus().deleteRow().run()} title="Delete row">
+            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+          </ToolbarBtn>
+
+          <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+          <span className="text-xs font-medium text-gray-400 dark:text-gray-500 mr-1 flex items-center gap-1">
+            <Columns2 className="w-3.5 h-3.5" /> Cols
+          </span>
+          <ToolbarBtn onClick={() => editor.chain().focus().addColumnBefore().run()} title="Add column before">
+            <ArrowLeftToLine className="w-3.5 h-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add column after">
+            <ArrowRightToLine className="w-3.5 h-3.5" />
+          </ToolbarBtn>
+          <ToolbarBtn onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete column">
+            <Trash2 className="w-3.5 h-3.5 text-red-400" />
+          </ToolbarBtn>
+
+          <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+          <button
+            onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().deleteTable().run() }}
+            title="Delete table"
+            className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3 h-3" />
+            Delete table
+          </button>
+        </div>
+      )}
+
       {showImageModal && (
         <ImageInsertModal
           onInsert={handleImageInsert}
           onClose={() => setShowImageModal(false)}
         />
       )}
-    </div>
+    </>
   )
 }

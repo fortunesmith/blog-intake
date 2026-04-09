@@ -20,7 +20,7 @@ V1 runs as a locally served web app. Each user pulls down the repo and runs the 
 ### Prerequisites
 
 - Python 3.10+
-- Node.js 18+
+- Node.js 20+ (Vite 8 requires Node 20.19+ or 22.12+)
 
 ### Setup
 

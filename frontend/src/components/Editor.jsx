@@ -37,11 +37,11 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
     extensions: [
       StarterKit.configure({ link: { openOnClick: false } }),
       Image.configure({ inline: false }),
-      Table.configure({ resizable: false }),
+      Table.configure({ resizable: false, allowGapCursor: true }),
       TableRow,
       TableHeader,
       TableCell,
-      Markdown.configure({ html: false, tightLists: true, linkify: false }),
+      Markdown.configure({ html: true, tightLists: true, linkify: false }),
     ],
     content: '',
     onCreate({ editor }) {
@@ -59,6 +59,115 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
       attributes: {
         'data-placeholder': 'Start writing your blog post…',
       },
+      // TODO (Contentstack milestone): Cursor positioning misfires when pasting a large,
+      // mixed-content Word document containing tables. Root cause is TipTap's `fixTables`
+      // plugin dispatching correction transactions after paste, corrupting ProseMirror's
+      // position descriptors. Recommended fix: disable `fixTables` via Table extension
+      // config and validate table structure entirely inside `transformPastedHTML`, or
+      // intercept at the Slice level using the `transformPasted` editorProp instead of
+      // `transformPastedHTML`. The current `transformPastedHTML` cleanup + GapCursor fix
+      // handles standalone table pastes correctly; only large mixed-content documents
+      // are affected.
+      transformPastedHTML(html) {
+        if (!html.includes('schemas-microsoft-com')) return html
+
+        // Strip HTML comments (StartFragment, EndFragment, Word conditionals)
+        let clean = html.replace(/<!--[\s\S]*?-->/g, '')
+
+        // Strip XML namespace elements
+        clean = clean
+          .replace(/<\/?o:[^>]*>/gi, '')
+          .replace(/<\/?v:[^>]*>/gi, '')
+          .replace(/<\/?w:[^>]*>/gi, '')
+          .replace(/<\/?m:[^>]*>/gi, '')
+
+        // Extract body content
+        const div = document.createElement('div')
+        const bodyMatch = clean.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+        div.innerHTML = bodyMatch ? bodyMatch[1] : clean
+
+        // Remove unwanted elements
+        div.querySelectorAll('style,head,meta,link,script').forEach(el => el.remove())
+
+        // Strip inline styles, Word classes, lang attributes
+        div.querySelectorAll('[style]').forEach(el => el.removeAttribute('style'))
+        div.querySelectorAll('[class]').forEach(el => {
+          if (/^Mso|word/i.test(el.getAttribute('class') ?? '')) el.removeAttribute('class')
+        })
+        div.querySelectorAll('[lang]').forEach(el => el.removeAttribute('lang'))
+
+        // Unwrap attribute-free spans
+        div.querySelectorAll('span').forEach(el => {
+          if (!el.hasAttributes()) el.replaceWith(...Array.from(el.childNodes))
+        })
+
+        // Remove colgroup/col entirely — TipTap's table model only expects tableRow children
+        div.querySelectorAll('colgroup').forEach(el => el.remove())
+
+        // Strip colspan/rowspan before normalization so every cell is a simple 1×1 unit.
+        // Without this, a <td colspan="2"> counts as 1 cell but spans 2 columns, causing
+        // normalization to over-pad rows and leave fixTables with an inconsistent table.
+        div.querySelectorAll('td, th').forEach(cell => {
+          cell.removeAttribute('colspan')
+          cell.removeAttribute('rowspan')
+        })
+
+        // Normalize rows to equal cell counts so fixTables never dispatches a
+        // correction transaction (which corrupts ProseMirror's descriptor positions)
+        div.querySelectorAll('table').forEach(table => {
+          const rows = Array.from(table.querySelectorAll('tr'))
+          if (!rows.length) return
+          const maxCells = Math.max(...rows.map(r => r.querySelectorAll('td, th').length))
+          rows.forEach(row => {
+            const deficit = maxCells - row.querySelectorAll('td, th').length
+            for (let i = 0; i < deficit; i++) {
+              const td = document.createElement('td')
+              td.appendChild(document.createElement('p'))
+              row.appendChild(td)
+            }
+          })
+        })
+
+        // Wrap bare cell text in <p> to satisfy TipTap's block+ cell content requirement
+        div.querySelectorAll('td, th').forEach(cell => {
+          const hasBlock = Array.from(cell.childNodes).some(
+            n => n.nodeType === 1 && /^(p|h[1-6]|blockquote|pre|ul|ol)$/i.test(n.tagName)
+          )
+          if (!hasBlock && cell.childNodes.length) {
+            const p = document.createElement('p')
+            while (cell.firstChild) p.appendChild(cell.firstChild)
+            cell.appendChild(p)
+          }
+        })
+
+        // Strip presentational table attributes
+        const TABLE_ATTRS = ['width', 'height', 'valign', 'align', 'border',
+                             'cellspacing', 'cellpadding', 'bgcolor', 'bordercolor']
+        div.querySelectorAll('table,thead,tbody,tfoot,tr,th,td')
+           .forEach(el => TABLE_ATTRS.forEach(attr => el.removeAttribute(attr)))
+
+        return div.innerHTML
+      },
+
+      // Replace ProseMirror's coordsAtPos-based scroll with a native selection rect lookup.
+      // coordsAtPos misfires for large Word-pasted tables, snapping the viewport to the wrong
+      // position. window.getSelection().getRangeAt(0).getBoundingClientRect() is always accurate.
+      handleScrollToSelection: (_view) => {
+        requestAnimationFrame(() => {
+          const sel = window.getSelection()
+          if (!sel || sel.rangeCount === 0) return
+          const rect = sel.getRangeAt(0).getBoundingClientRect()
+          if (!rect.top && !rect.bottom) return  // truly unrendered element
+          const toolbar = document.querySelector('.editor-toolbar')
+          const topOffset = toolbar ? toolbar.getBoundingClientRect().bottom : 106
+          if (rect.top < topOffset) {
+            window.scrollBy(0, rect.top - topOffset - 8)
+          } else if (rect.bottom > window.innerHeight - 20) {
+            window.scrollBy(0, rect.bottom - window.innerHeight + 20)
+          }
+        })
+        return true  // always prevent the broken coordsAtPos-based default
+      },
     },
   })
 
@@ -75,9 +184,9 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
     : 0
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex flex-col">
       <Toolbar editor={editor} onImageInsert={onImageInsert} />
-      <EditorContent editor={editor} className="flex-1" />
+      <EditorContent editor={editor} />
       <div className="border-t border-gray-100 dark:border-gray-800 px-8 py-2 flex justify-end">
         <span className="text-xs text-gray-400 dark:text-gray-600">
           {wordCount} {wordCount === 1 ? 'word' : 'words'}

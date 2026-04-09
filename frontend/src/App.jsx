@@ -173,7 +173,7 @@ export default function App() {
       <MetadataFields metadata={metadata} onChange={handleMetadataChange} />
 
       {/* ── Editor + Preview panes ───────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row flex-1">
+      <div className="flex flex-col sm:flex-row">
         <div className={`flex flex-col ${showPreview ? 'sm:w-1/2 w-full' : 'w-full'} ${!showEditor ? 'hidden' : ''}`}>
           <Editor
             ref={editorRef}
