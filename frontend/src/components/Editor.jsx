@@ -8,6 +8,56 @@ import Toolbar from './Toolbar'
 
 const STORAGE_KEY = 'blog-intake-draft'
 
+// Converts a single <td>/<th> DOM node's inner content to inline markdown.
+function cellHtmlToMarkdown(cell) {
+  let html = cell.innerHTML
+  // collapse block wrappers to spaces so multi-paragraph cells become one line
+  html = html.replace(/<\/?(?:p|div)[^>]*>/gi, ' ')
+  html = html
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
+    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*')
+    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '*$1*')
+    .replace(/<s[^>]*>([\s\S]*?)<\/s>/gi, '~~$1~~')
+    .replace(/<del[^>]*>([\s\S]*?)<\/del>/gi, '~~$1~~')
+    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
+    .replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)')
+    .replace(/<[^>]+>/g, '')       // strip remaining tags
+    .replace(/\s+/g, ' ')          // normalise whitespace
+    .replace(/\|/g, '\\|')         // escape pipe characters
+    .trim()
+  return html
+}
+
+// Replaces every HTML <table>…</table> block in a markdown string with a GFM
+// pipe table. Falls back silently to the original HTML if anything goes wrong.
+function htmlTablesToGFM(md) {
+  return md.replace(/<table[\s\S]*?<\/table>/gi, (tableHtml) => {
+    try {
+      const div = document.createElement('div')
+      div.innerHTML = tableHtml
+      const rows = Array.from(div.querySelectorAll('tr'))
+      if (!rows.length) return tableHtml
+
+      const rowToLine = (row) =>
+        '| ' + Array.from(row.querySelectorAll('th, td'))
+          .map(cellHtmlToMarkdown)
+          .join(' | ') + ' |'
+
+      const colCount = rows[0].querySelectorAll('th, td').length
+      const separator = '| ' + Array(colCount).fill('---').join(' | ') + ' |'
+
+      return [
+        rowToLine(rows[0]),
+        separator,
+        ...rows.slice(1).map(rowToLine),
+      ].join('\n')
+    } catch (_) {
+      return tableHtml  // fallback: return original HTML unchanged
+    }
+  })
+}
+
 export function loadDraft() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -53,7 +103,7 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
     },
     onUpdate({ editor }) {
       saveDraft({ content: editor.getJSON() })
-      onMarkdownChange?.(editor.storage.markdown?.getMarkdown() ?? '')
+      onMarkdownChange?.(htmlTablesToGFM(editor.storage.markdown?.getMarkdown() ?? ''))
     },
     editorProps: {
       attributes: {
@@ -172,7 +222,7 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
   })
 
   useImperativeHandle(ref, () => ({
-    getMarkdown: () => editor?.storage.markdown?.getMarkdown() ?? '',
+    getMarkdown: () => htmlTablesToGFM(editor?.storage.markdown?.getMarkdown() ?? ''),
     getEditor: () => editor,
     reset: () => {
       editor?.commands.clearContent(true)

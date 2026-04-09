@@ -9,7 +9,7 @@ export default function Preview({ markdown }) {
   return (
     <div className="border-l border-gray-200 dark:border-gray-700">
       {/* Pane header with Rendered / Markdown toggle */}
-      <div className="editor-toolbar bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between">
+      <div className="editor-toolbar bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 min-h-[49px] flex items-center justify-between">
         <span className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Preview</span>
         <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-xs bg-white dark:bg-gray-900">
           <button

@@ -16,6 +16,12 @@ body {
 .dark body {
   background: #111827;
   color: #f3f4f6;
+  -webkit-font-smoothing: auto;
+  font-weight: 450;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
 }
 
 /* ── TipTap editor content styles ────────────────────────────────── */
