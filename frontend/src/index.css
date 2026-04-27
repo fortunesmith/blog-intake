@@ -142,11 +142,13 @@ body {
   background: #f9fafb;
   font-weight: 600;
   text-align: left;
+  position: relative;
 }
 
 .ProseMirror td {
   border: 1px solid #d1d5db;
   padding: 0.5rem 0.75rem;
+  position: relative;
 }
 
 .ProseMirror .selectedCell:after {
