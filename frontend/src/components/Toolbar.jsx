@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useEditorState } from '@tiptap/react'
 import {
   Bold, Italic, Strikethrough,
   Heading1, Heading2, Heading3, Heading4,
@@ -97,6 +98,26 @@ export default function Toolbar({ editor, onImageInsert }) {
     setTimeout(() => orderedStartInputRef.current?.focus(), 50)
   }, [showOrderedPopover, editor])
 
+  const fmt = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({
+      bold:        e.isActive('bold'),
+      italic:      e.isActive('italic'),
+      strike:      e.isActive('strike'),
+      h1:          e.isActive('heading', { level: 1 }),
+      h2:          e.isActive('heading', { level: 2 }),
+      h3:          e.isActive('heading', { level: 3 }),
+      h4:          e.isActive('heading', { level: 4 }),
+      bulletList:  e.isActive('bulletList'),
+      orderedList: e.isActive('orderedList'),
+      blockquote:  e.isActive('blockquote'),
+      code:        e.isActive('code'),
+      codeBlock:   e.isActive('codeBlock'),
+      link:        e.isActive('link'),
+      table:       e.isActive('table'),
+    }),
+  })
+
   if (!editor) return null
 
   const applyLink = () => {
@@ -150,47 +171,63 @@ export default function Toolbar({ editor, onImageInsert }) {
     setShowOrderedPopover(false)
   }
 
+  const handleCodeBlock = () => {
+    if (fmt.codeBlock) {
+      editor.chain().focus().toggleCodeBlock().run()
+      return
+    }
+    const { state } = editor
+    const { from, to } = state.selection
+    const text = state.doc.textBetween(from, to, '\n')
+    editor.chain().focus()
+      .insertContentAt({ from, to }, {
+        type: 'codeBlock',
+        content: text ? [{ type: 'text', text }] : [],
+      })
+      .run()
+  }
+
   return (
     <>
       <div className="editor-toolbar bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-0.5 flex-wrap select-none">
 
         {/* Text format */}
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold (⌘B)">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={fmt.bold} title="Bold (⌘B)">
           <Bold className="w-3.5 h-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic (⌘I)">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={fmt.italic} title="Italic (⌘I)">
           <Italic className="w-3.5 h-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="Strikethrough">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={fmt.strike} title="Strikethrough">
           <Strikethrough className="w-3.5 h-3.5" />
         </ToolbarBtn>
 
         <Divider />
 
         {/* Headings */}
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="Heading 1">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={fmt.h1} title="Heading 1">
           <Heading1 className="w-3.5 h-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="Heading 2">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={fmt.h2} title="Heading 2">
           <Heading2 className="w-3.5 h-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title="Heading 3">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={fmt.h3} title="Heading 3">
           <Heading3 className="w-3.5 h-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()} active={editor.isActive('heading', { level: 4 })} title="Heading 4">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()} active={fmt.h4} title="Heading 4">
           <Heading4 className="w-3.5 h-3.5" />
         </ToolbarBtn>
 
         <Divider />
 
         {/* Lists & blocks */}
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={fmt.bulletList} title="Bullet list">
           <List className="w-3.5 h-3.5" />
         </ToolbarBtn>
         <div className="relative" ref={orderedPopoverRef}>
           <ToolbarBtn
             onClick={() => setShowOrderedPopover((v) => !v)}
-            active={editor.isActive('orderedList') || showOrderedPopover}
+            active={fmt.orderedList || showOrderedPopover}
             title="Numbered list"
           >
             <ListOrdered className="w-3.5 h-3.5" />
@@ -221,7 +258,7 @@ export default function Toolbar({ editor, onImageInsert }) {
                   Apply
                 </button>
               </div>
-              {editor.isActive('orderedList') && (
+              {fmt.orderedList && (
                 <button
                   onMouseDown={(e) => { e.preventDefault(); removeOrderedNumbering() }}
                   className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
@@ -232,22 +269,22 @@ export default function Toolbar({ editor, onImageInsert }) {
             </div>
           )}
         </div>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Blockquote">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={fmt.blockquote} title="Blockquote">
           <Quote className="w-3.5 h-3.5" />
         </ToolbarBtn>
 
         <Divider />
 
         {/* Code */}
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Inline code">
+        <ToolbarBtn onClick={() => editor.chain().focus().toggleCode().run()} active={fmt.code} title="Inline code">
           <Code className="w-3.5 h-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="Code block">
+        <ToolbarBtn onClick={handleCodeBlock} active={fmt.codeBlock} title="Code block">
           <Code2 className="w-3.5 h-3.5" />
         </ToolbarBtn>
 
         {/* Code block language selector */}
-        {editor.isActive('codeBlock') && (
+        {fmt.codeBlock && (
           <input
             type="text"
             placeholder="language"
@@ -265,7 +302,7 @@ export default function Toolbar({ editor, onImageInsert }) {
         <div className="relative" ref={linkPopoverRef}>
           <ToolbarBtn
             onClick={() => setShowLinkPopover((v) => !v)}
-            active={editor.isActive('link') || showLinkPopover}
+            active={fmt.link || showLinkPopover}
             title="Link"
           >
             <Link className="w-3.5 h-3.5" />
@@ -360,7 +397,7 @@ export default function Toolbar({ editor, onImageInsert }) {
         </ToolbarBtn>
       </div>
 
-      {editor.isActive('table') && (
+      {fmt.table && (
         <div className="flex items-center gap-0.5 px-4 py-1.5 border-t border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-gray-800 flex-wrap select-none">
           <span className="text-xs font-medium text-gray-400 dark:text-gray-500 mr-1 flex items-center gap-1">
             <Rows2 className="w-3.5 h-3.5" /> Rows

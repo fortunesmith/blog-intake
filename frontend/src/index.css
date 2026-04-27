@@ -207,6 +207,11 @@ body {
   color: #d1d5db;
 }
 
+.dark .ProseMirror pre code {
+  background: none;
+  color: inherit;
+}
+
 .dark .ProseMirror blockquote {
   border-left-color: #4b5563;
   color: #9ca3af;
@@ -347,6 +352,11 @@ body {
 .dark .preview-content code {
   background: #374151;
   color: #d1d5db;
+}
+
+.dark .preview-content pre code {
+  background: none;
+  color: inherit;
 }
 
 .dark .preview-content blockquote {

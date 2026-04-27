@@ -410,16 +410,6 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
         return normalizePastedPlainText(text)
       },
 
-      transformPasted(slice, _view, plain) {
-        pasteDevLog('transformPasted', {
-          plain,
-          sliceContentSize: slice?.content?.size ?? 0,
-          openStart: slice?.openStart,
-          openEnd: slice?.openEnd,
-        })
-        return slice
-      },
-
       // Replace ProseMirror's coordsAtPos-based scroll with a native selection rect lookup.
       // coordsAtPos misfires for any document containing code blocks with very long lines
       // (e.g. a 200-char base64 string), causing the viewport to snap to the wrong position
