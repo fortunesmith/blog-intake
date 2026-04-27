@@ -108,6 +108,50 @@ function normalizePastedTablesAndLinks(div) {
     })
   })
 
+  // Detect and lift "caption rows": first <tr> containing exactly one cell
+  // that spans all columns via colspan — common in Word/Excel pastes where
+  // a description paragraph appears above the real header as a merged cell.
+  div.querySelectorAll('table').forEach((table) => {
+    const allRows = Array.from(table.querySelectorAll('tr'))
+    if (allRows.length < 2) return
+
+    // Column count = max expanded cell count across all rows
+    const colCount = Math.max(...allRows.map((row) =>
+      Array.from(row.querySelectorAll('td, th')).reduce(
+        (sum, c) => sum + (parseInt(c.getAttribute('colspan') ?? '1', 10)), 0
+      )
+    ))
+    if (colCount < 2) return  // single-column tables never have meaningful caption rows
+
+    const firstRow = allRows[0]
+    const cells = Array.from(firstRow.querySelectorAll('td, th'))
+    if (cells.length !== 1) return  // must have exactly one cell
+
+    const colspan = parseInt(cells[0].getAttribute('colspan') ?? '1', 10)
+    if (colspan < colCount) return  // must span all columns
+
+    if (!cells[0].textContent.trim()) {
+      firstRow.remove()  // empty caption row — just drop it
+      return
+    }
+
+    // Move the cell's block children before the <table>
+    const wrapper = document.createElement('div')
+    wrapper.innerHTML = cells[0].innerHTML
+    const parent = table.parentNode
+    Array.from(wrapper.childNodes).forEach((node) => {
+      if (node.nodeType === 3) {
+        if (!/\S/.test(node.textContent)) return
+        const p = document.createElement('p')
+        p.textContent = node.textContent.trim()
+        parent.insertBefore(p, table)
+      } else if (node.nodeType === 1 && node.textContent.trim()) {
+        parent.insertBefore(node, table)
+      }
+    })
+    firstRow.remove()
+  })
+
   div.querySelectorAll('td, th').forEach((cell) => {
     cell.removeAttribute('colspan')
     cell.removeAttribute('rowspan')
