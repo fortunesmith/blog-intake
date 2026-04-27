@@ -81,6 +81,33 @@ function normalizePastedTablesAndLinks(div) {
 
   div.querySelectorAll('colgroup').forEach((el) => el.remove())
 
+  // Lift any non-row block content that landed as a direct child of a table
+  // container (table, thead, tbody, tfoot) up to just before the nearest
+  // ancestor <table>. This happens when a source like Google Docs or Notion
+  // emits a paragraph immediately before a table but the HTML parser (or the
+  // source itself) nests it inside the table element.
+  div.querySelectorAll('table, thead, tbody, tfoot').forEach((container) => {
+    const table = container.closest('table') ?? container
+    if (!div.contains(table)) return
+    Array.from(container.childNodes).forEach((child) => {
+      // Keep <tr>, <thead>, <tbody>, <tfoot>, comment nodes, and whitespace-only text nodes in place.
+      if (child.nodeType === 8) return // comment
+      if (child.nodeType === 3) {
+        if (!/\S/.test(child.textContent)) return // whitespace-only text
+        // Wrap stray text in a <p> and lift it
+        const p = document.createElement('p')
+        p.textContent = child.textContent
+        table.parentNode?.insertBefore(p, table)
+        child.remove()
+        return
+      }
+      if (/^(thead|tbody|tfoot|tr)$/i.test(child.tagName)) return
+      // Block element (p, h1-h6, div, ul, ol, pre, blockquote) or anything else —
+      // move it before the table.
+      table.parentNode?.insertBefore(child, table)
+    })
+  })
+
   div.querySelectorAll('td, th').forEach((cell) => {
     cell.removeAttribute('colspan')
     cell.removeAttribute('rowspan')
