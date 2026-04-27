@@ -415,6 +415,22 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
         return normalizePastedPlainText(text)
       },
 
+      // Suppress Safari/WebKit's native table-editing context menu (right-click →
+      // "Split Cell", "Merge Cells", etc.). Those options modify the raw DOM directly,
+      // bypassing ProseMirror and corrupting the document model. Blocking the default
+      // inside table cells prevents this while leaving the normal context menu intact
+      // everywhere else in the editor.
+      handleDOMEvents: {
+        contextmenu(_view, event) {
+          const target = event.target
+          if (target instanceof Element && target.closest('td, th')) {
+            event.preventDefault()
+            return true
+          }
+          return false
+        },
+      },
+
       // Replace ProseMirror's coordsAtPos-based scroll with a native selection rect lookup.
       // coordsAtPos misfires for any document containing code blocks with very long lines
       // (e.g. a 200-char base64 string), causing the viewport to snap to the wrong position
