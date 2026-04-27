@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- draft helpers exported for App */
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Extension } from '@tiptap/core'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -266,7 +266,9 @@ const PastePlainShortcut = Extension.create({
         const ed = this.editor
         navigator.clipboard.readText().then((t) => {
           ed.chain().focus().insertContent(plainTextToInsertHtml(t)).run()
-        }).catch(() => {})
+        }).catch((err) => {
+          if (import.meta.env.DEV) console.warn('[paste-as-plain] clipboard read failed:', err)
+        })
         return true
       },
     }
@@ -358,6 +360,7 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
   // avoids that entirely.
   const initialContent = useMemo(() => loadDraft()?.content ?? '', [])
   const markdownDebounceRef = useRef(null)
+  const [wordCount, setWordCount] = useState(0)
 
   const editor = useEditor({
     extensions: [
@@ -373,9 +376,11 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
     content: initialContent,
     onCreate({ editor }) {
       onMarkdownChange?.(htmlTablesToGFM(editor.storage.markdown?.getMarkdown() ?? ''))
+      setWordCount(editor.getText().trim().split(/\s+/).filter(Boolean).length)
     },
     onUpdate({ editor }) {
       saveDraft({ content: editor.getJSON() })
+      setWordCount(editor.getText().trim().split(/\s+/).filter(Boolean).length)
       if (markdownDebounceRef.current) clearTimeout(markdownDebounceRef.current)
       markdownDebounceRef.current = setTimeout(() => {
         markdownDebounceRef.current = null
@@ -474,10 +479,6 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
       editor?.commands.clearContent(true)
     },
   }))
-
-  const wordCount = editor
-    ? editor.getText().trim().split(/\s+/).filter(Boolean).length
-    : 0
 
   return (
     <div className="flex flex-col">

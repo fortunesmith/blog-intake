@@ -2,7 +2,7 @@ import os
 from flask import Flask, send_from_directory
 from werkzeug.exceptions import NotFound
 
-app = Flask(__name__, static_folder=os.path.join('..', 'frontend', 'dist'), static_url_path='')
+app = Flask(__name__, static_folder=os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')), static_url_path='')
 
 DEBUG = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
 

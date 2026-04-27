@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { PenLine, Download, Copy, Check, FilePlus, Sun, Moon } from 'lucide-react'
 import Editor, { loadDraft, saveDraft, clearDraft } from './components/Editor'
 import MetadataFields from './components/MetadataFields'
@@ -19,10 +19,12 @@ function initDark() {
 export default function App() {
   const editorRef = useRef(null)
   const imageMapRef = useRef(new Map())
+  const copyTimeoutRef = useRef(null)
   const [metadata, setMetadata] = useState(initMetadata)
   const [markdownContent, setMarkdownContent] = useState('')
   const [viewMode, setViewMode] = useState('split')
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
   const [showNewDocModal, setShowNewDocModal] = useState(false)
   const [isDark, setIsDark] = useState(initDark)
 
@@ -35,6 +37,10 @@ export default function App() {
     }
     localStorage.setItem('blog-intake-theme', isDark ? 'dark' : 'light')
   }, [isDark])
+
+  useEffect(() => {
+    return () => clearTimeout(copyTimeoutRef.current)
+  }, [])
 
   const handleMetadataChange = (updated) => {
     setMetadata(updated)
@@ -78,11 +84,20 @@ export default function App() {
   }
 
   const handleCopy = async () => {
-    const md = buildExportMarkdown()
-    await navigator.clipboard.writeText(md)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(buildExportMarkdown())
+      setCopied(true)
+      setCopyError(false)
+      clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopyError(true)
+      clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => setCopyError(false), 2000)
+    }
   }
+
+  const handleCloseNewDocModal = useCallback(() => setShowNewDocModal(false), [])
 
   const handleImageInsert = (objectUrl, filename) => {
     imageMapRef.current.set(objectUrl, filename)
@@ -156,7 +171,9 @@ export default function App() {
           >
             {copied
               ? <><Check className="w-3.5 h-3.5 text-green-500" />Copied</>
-              : <><Copy className="w-3.5 h-3.5" />Copy Markdown</>
+              : copyError
+                ? <><Copy className="w-3.5 h-3.5 text-red-500" />Copy failed</>
+                : <><Copy className="w-3.5 h-3.5" />Copy Markdown</>
             }
           </button>
           <button
@@ -195,7 +212,7 @@ export default function App() {
           message="Your current content will be permanently cleared. This cannot be undone."
           confirmLabel="Clear and start new"
           onConfirm={handleNewDocument}
-          onClose={() => setShowNewDocModal(false)}
+          onClose={handleCloseNewDocModal}
         />
       )}
     </div>

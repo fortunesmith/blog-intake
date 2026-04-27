@@ -2,6 +2,10 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+
+const REMARK_PLUGINS = [remarkGfm]
+const REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize]
 
 export default function Preview({ markdown }) {
   const [view, setView] = useState('rendered')
@@ -39,7 +43,7 @@ export default function Preview({ markdown }) {
       {view === 'rendered' && (
         <div className="preview-content px-8 py-7">
           {markdown.trim() ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{markdown}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{markdown}</ReactMarkdown>
           ) : (
             <p className="text-gray-300 dark:text-gray-600 text-sm italic">Nothing to preview yet.</p>
           )}
