@@ -1,4 +1,6 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react'
+/* eslint-disable react-refresh/only-export-components -- draft helpers exported for App */
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { Extension } from '@tiptap/core'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -7,6 +9,269 @@ import { Markdown } from 'tiptap-markdown'
 import Toolbar from './Toolbar'
 
 const STORAGE_KEY = 'blog-intake-draft'
+
+/**
+ * Dev-only paste/cursor diagnosis (`import.meta.env.DEV`).
+ * Console: `[blog-intake/paste-diag] …` on each paste stage.
+ * Globals: `__blogIntakeLastPaste`, `__blogIntakeDumpEditor()`, `__blogIntakePasteDocStats()`.
+ */
+function pasteDevLog(tag, data) {
+  if (!import.meta.env.DEV) return
+  console.info(`[blog-intake/paste-diag] ${tag}`, data)
+  if (typeof window !== 'undefined') {
+    window.__blogIntakeLastPaste = { tag, at: Date.now(), ...data }
+  }
+}
+
+function countNodesByType(node, typeName, acc = 0) {
+  if (!node || typeof node !== 'object') return acc
+  if (node.type === typeName) acc += 1
+  if (Array.isArray(node.content)) {
+    for (const c of node.content) acc = countNodesByType(c, typeName, acc)
+  }
+  return acc
+}
+
+const SAFE_HREF = /^(https?:|mailto:)/i
+
+const TABLE_ATTRS = ['width', 'height', 'valign', 'align', 'border',
+  'cellspacing', 'cellpadding', 'bgcolor', 'bordercolor']
+
+/** Normalizes line endings, list bullets, and narrow `}'Word` merge glitches for text/plain paste. */
+function normalizePastedPlainText(text) {
+  if (!text) return text
+  let out = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  // NBSP / BOM are not matched by \s in JavaScript; include them explicitly.
+  out = out.split('\n').map((line) =>
+    line.replace(/^[\u2022\u00B7\u25AA\u25AB\u25E6][\s\u00A0\uFEFF]*/, '- ')
+  ).join('\n')
+  out = out.replace(/(\}['"])[\s\u00A0\uFEFF]*(?=[A-Z][a-z])/g, '$1\n\n')
+  return out
+}
+
+/** Inserts plain text as paragraphs (for paste-as-plain shortcut); HTML metacharacters escaped. */
+function plainTextToInsertHtml(text) {
+  const normalized = normalizePastedPlainText(text)
+  const blocks = normalized.split(/\n{2,}/)
+  if (blocks.length === 0) return '<p></p>'
+  return blocks.map((block) => {
+    const inner = block.split('\n').map((line) =>
+      line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    ).join('<br>')
+    return `<p>${inner.length ? inner : '<br>'}</p>`
+  }).join('')
+}
+
+/**
+ * Shared table + link cleanup so pasted HTML matches TipTap’s table model and avoids
+ * prosemirror-tables fixTables correction transactions that desync the cursor.
+ *
+ * Non-Word clipboards (typical shapes): Google Docs — inline styles on spans, rare tables;
+ * Gmail — layout tables; Slack/Notes — mixed. Normalizing row geometry and stripping bogus
+ * links addresses the common cursor bugs tied to table maps and internal hrefs.
+ */
+function normalizePastedTablesAndLinks(div) {
+  div.querySelectorAll('a').forEach((el) => {
+    const href = el.getAttribute('href') ?? ''
+    const hasName = el.hasAttribute('name')
+    if (hasName || !SAFE_HREF.test(href)) {
+      el.replaceWith(...Array.from(el.childNodes))
+    }
+  })
+
+  div.querySelectorAll('colgroup').forEach((el) => el.remove())
+
+  div.querySelectorAll('td, th').forEach((cell) => {
+    cell.removeAttribute('colspan')
+    cell.removeAttribute('rowspan')
+  })
+
+  div.querySelectorAll('table').forEach((table) => {
+    const rows = Array.from(table.querySelectorAll('tr'))
+    if (!rows.length) return
+    const maxCells = Math.max(...rows.map((r) => r.querySelectorAll('td, th').length))
+    rows.forEach((row) => {
+      const deficit = maxCells - row.querySelectorAll('td, th').length
+      for (let i = 0; i < deficit; i++) {
+        const td = document.createElement('td')
+        td.appendChild(document.createElement('p'))
+        row.appendChild(td)
+      }
+    })
+  })
+
+  div.querySelectorAll('td, th').forEach((cell) => {
+    const hasBlock = Array.from(cell.childNodes).some(
+      (n) => n.nodeType === 1 && /^(p|h[1-6]|blockquote|pre|ul|ol)$/i.test(n.tagName)
+    )
+    if (!hasBlock && cell.childNodes.length) {
+      const p = document.createElement('p')
+      while (cell.firstChild) p.appendChild(cell.firstChild)
+      cell.appendChild(p)
+    }
+  })
+
+  div.querySelectorAll('table,thead,tbody,tfoot,tr,th,td')
+    .forEach((el) => TABLE_ATTRS.forEach((attr) => el.removeAttribute(attr)))
+}
+
+const GLUE_JSON_HEADING_G = /(\}['"])[\s\u00A0\uFEFF]*(?=[A-Z][a-z])/g
+
+const GLUE_JSON_HEADING_TEST = /(\}['"])[\s\u00A0\uFEFF]*(?=[A-Z][a-z])/
+
+/** True for divs that act like a paragraph (no nested block-level children). */
+function isParagraphLikeDiv(el) {
+  if (!el || el.tagName !== 'DIV') return false
+  for (const c of el.children) {
+    if (/^(P|DIV|UL|OL|TABLE|PRE|H[1-6]|BLOCKQUOTE)$/i.test(c.tagName)) return false
+  }
+  return true
+}
+
+/** Long unbroken lines in <pre> break ProseMirror coordsAtPos; soft-wrap at maxCols. */
+function softWrapPreLineLength(root, maxCols = 120) {
+  root.querySelectorAll('pre').forEach((pre) => {
+    const t = pre.textContent
+    if (t.length <= maxCols) return
+    const lines = t.split('\n')
+    const out = lines.map((line) => {
+      if (line.length <= maxCols) return line
+      const chunks = []
+      for (let i = 0; i < line.length; i += maxCols) chunks.push(line.slice(i, i + maxCols))
+      return chunks.join('\n')
+    }).join('\n')
+    pre.textContent = out
+  })
+}
+
+function segmentTextOnJsonGlue(txt) {
+  const re = new RegExp(GLUE_JSON_HEADING_G.source, 'g')
+  const segments = []
+  let last = 0
+  let m
+  while ((m = re.exec(txt)) !== null) {
+    const end = m.index + m[0].length
+    segments.push(txt.slice(last, end))
+    last = end
+  }
+  segments.push(txt.slice(last))
+  return segments
+}
+
+/**
+ * Splits JSON-like `}'` / `}"` before a prose word using each block’s full textContent
+ * (handles div-as-paragraph clipboards and glue split across <span>s). Flattens inline
+ * markup in affected blocks only. Inside <pre>, newline-only insertion.
+ */
+function repairGluedJsonHeadingInDiv(root) {
+  root.querySelectorAll('pre').forEach((pre) => {
+    const t = pre.textContent
+    if (!GLUE_JSON_HEADING_TEST.test(t)) return
+    pre.textContent = t.replace(GLUE_JSON_HEADING_G, '$1\n\n')
+  })
+
+  const blockHosts = []
+  root.querySelectorAll('p').forEach((p) => {
+    if (!p.closest('pre') && root.contains(p)) blockHosts.push(p)
+  })
+  root.querySelectorAll('div').forEach((d) => {
+    if (d.closest('pre') || !root.contains(d)) return
+    if (isParagraphLikeDiv(d)) blockHosts.push(d)
+  })
+
+  for (const el of blockHosts) {
+    if (!root.contains(el)) continue
+    const txt = el.textContent
+    if (!GLUE_JSON_HEADING_TEST.test(txt)) continue
+
+    const segments = segmentTextOnJsonGlue(txt)
+    if (segments.length < 2) continue
+
+    const parent = el.parentNode
+    if (!parent) continue
+
+    el.textContent = segments[0]
+    let anchor = el
+    for (let i = 1; i < segments.length; i++) {
+      const p = document.createElement('p')
+      p.textContent = segments[i]
+      parent.insertBefore(p, anchor.nextSibling)
+      anchor = p
+    }
+  }
+}
+
+function transformWordPasteHtml(html) {
+  let clean = html.replace(/<!--[\s\S]*?-->/g, '')
+  clean = clean
+    .replace(/<\/?o:[^>]*>/gi, '')
+    .replace(/<\/?v:[^>]*>/gi, '')
+    .replace(/<\/?w:[^>]*>/gi, '')
+    .replace(/<\/?m:[^>]*>/gi, '')
+
+  const div = document.createElement('div')
+  const bodyMatch = clean.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+  div.innerHTML = bodyMatch ? bodyMatch[1] : clean
+
+  div.querySelectorAll('style,head,meta,link,script').forEach((el) => el.remove())
+
+  div.querySelectorAll('[style]').forEach((el) => el.removeAttribute('style'))
+  div.querySelectorAll('[class]').forEach((el) => {
+    if (/^Mso|word/i.test(el.getAttribute('class') ?? '')) el.removeAttribute('class')
+  })
+  div.querySelectorAll('[lang]').forEach((el) => el.removeAttribute('lang'))
+
+  div.querySelectorAll('span').forEach((el) => {
+    if (!el.hasAttributes()) el.replaceWith(...Array.from(el.childNodes))
+  })
+
+  div.normalize()
+
+  normalizePastedTablesAndLinks(div)
+  repairGluedJsonHeadingInDiv(div)
+  softWrapPreLineLength(div)
+  return div.innerHTML
+}
+
+function transformGenericPasteHtml(html) {
+  if (!html.includes('<')) return normalizePastedPlainText(html)
+
+  const div = document.createElement('div')
+  div.innerHTML = html
+
+  div.querySelectorAll('style,head,meta,link,script').forEach((el) => el.remove())
+
+  normalizePastedTablesAndLinks(div)
+
+  div.querySelectorAll('[style]').forEach((el) => el.removeAttribute('style'))
+  let pass = 0
+  while (pass++ < 20) {
+    const bare = Array.from(div.querySelectorAll('span')).filter((el) => !el.hasAttributes())
+    if (!bare.length) break
+    bare.forEach((el) => el.replaceWith(...Array.from(el.childNodes)))
+  }
+
+  div.normalize()
+
+  repairGluedJsonHeadingInDiv(div)
+  softWrapPreLineLength(div)
+  return div.innerHTML
+}
+
+const PastePlainShortcut = Extension.create({
+  name: 'pasteAsPlain',
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Shift-v': () => {
+        const ed = this.editor
+        navigator.clipboard.readText().then((t) => {
+          ed.chain().focus().insertContent(plainTextToInsertHtml(t)).run()
+        }).catch(() => {})
+        return true
+      },
+    }
+  },
+})
 
 // Converts a single <td>/<th> DOM node's inner content to inline markdown.
 function cellHtmlToMarkdown(cell) {
@@ -52,7 +317,7 @@ function htmlTablesToGFM(md) {
         separator,
         ...rows.slice(1).map(rowToLine),
       ].join('\n')
-    } catch (_) {
+    } catch {
       return tableHtml  // fallback: return original HTML unchanged
     }
   })
@@ -79,15 +344,20 @@ export function saveDraft(patch) {
 export function clearDraft() {
   try {
     localStorage.removeItem(STORAGE_KEY)
-  } catch {}
+  } catch {
+    /* localStorage unavailable */
+  }
 }
+
+const MARKDOWN_DEBOUNCE_MS = 250
 
 const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, ref) {
   // Load draft once before editor creation so TipTap initialises with the full
   // document natively. setContent (used previously) does a full docView rebuild
   // that causes posAtCoords to misfire on large documents — passing content here
   // avoids that entirely.
-  const initialContent = useRef(loadDraft()?.content ?? '')
+  const initialContent = useMemo(() => loadDraft()?.content ?? '', [])
+  const markdownDebounceRef = useRef(null)
 
   const editor = useEditor({
     extensions: [
@@ -98,119 +368,56 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
       TableHeader,
       TableCell,
       Markdown.configure({ html: true, tightLists: true, linkify: false }),
+      PastePlainShortcut,
     ],
-    content: initialContent.current,
+    content: initialContent,
     onCreate({ editor }) {
       onMarkdownChange?.(htmlTablesToGFM(editor.storage.markdown?.getMarkdown() ?? ''))
     },
     onUpdate({ editor }) {
       saveDraft({ content: editor.getJSON() })
-      onMarkdownChange?.(htmlTablesToGFM(editor.storage.markdown?.getMarkdown() ?? ''))
+      if (markdownDebounceRef.current) clearTimeout(markdownDebounceRef.current)
+      markdownDebounceRef.current = setTimeout(() => {
+        markdownDebounceRef.current = null
+        onMarkdownChange?.(htmlTablesToGFM(editor.storage.markdown?.getMarkdown() ?? ''))
+      }, MARKDOWN_DEBOUNCE_MS)
     },
     editorProps: {
       attributes: {
         'data-placeholder': 'Start writing your blog post…',
       },
-      // TODO (Contentstack milestone): Cursor positioning misfires when pasting a large,
-      // mixed-content Word document containing tables. Root cause is TipTap's `fixTables`
-      // plugin dispatching correction transactions after paste, corrupting ProseMirror's
-      // position descriptors. Recommended fix: disable `fixTables` via Table extension
-      // config and validate table structure entirely inside `transformPastedHTML`, or
-      // intercept at the Slice level using the `transformPasted` editorProp instead of
-      // `transformPastedHTML`. The current `transformPastedHTML` cleanup + GapCursor fix
-      // handles standalone table pastes correctly; only large mixed-content documents
-      // are affected.
+      // Pasted HTML is sanitized so tables match TipTap’s model (row width, cells with
+      // block content, no colgroup/colspan surprises). That reduces prosemirror-tables
+      // fixTables follow-up transactions that previously desynced cursor/posAtCoords.
       transformPastedHTML(html) {
-        if (!html.includes('schemas-microsoft-com')) return html
-
-        // Strip HTML comments (StartFragment, EndFragment, Word conditionals)
-        let clean = html.replace(/<!--[\s\S]*?-->/g, '')
-
-        // Strip XML namespace elements
-        clean = clean
-          .replace(/<\/?o:[^>]*>/gi, '')
-          .replace(/<\/?v:[^>]*>/gi, '')
-          .replace(/<\/?w:[^>]*>/gi, '')
-          .replace(/<\/?m:[^>]*>/gi, '')
-
-        // Extract body content
-        const div = document.createElement('div')
-        const bodyMatch = clean.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
-        div.innerHTML = bodyMatch ? bodyMatch[1] : clean
-
-        // Remove unwanted elements
-        div.querySelectorAll('style,head,meta,link,script').forEach(el => el.remove())
-
-        // Strip inline styles, Word classes, lang attributes
-        div.querySelectorAll('[style]').forEach(el => el.removeAttribute('style'))
-        div.querySelectorAll('[class]').forEach(el => {
-          if (/^Mso|word/i.test(el.getAttribute('class') ?? '')) el.removeAttribute('class')
+        pasteDevLog('transformPastedHTML', {
+          branch: html.includes('schemas-microsoft-com') ? 'word' : 'generic',
+          htmlLen: html.length,
+          htmlPreview: html.slice(0, 300),
         })
-        div.querySelectorAll('[lang]').forEach(el => el.removeAttribute('lang'))
+        if (html.includes('schemas-microsoft-com')) {
+          return transformWordPasteHtml(html)
+        }
+        return transformGenericPasteHtml(html)
+      },
 
-        // Unwrap attribute-free spans
-        div.querySelectorAll('span').forEach(el => {
-          if (!el.hasAttributes()) el.replaceWith(...Array.from(el.childNodes))
+      transformPastedText(text, plain) {
+        pasteDevLog('transformPastedText', {
+          plain,
+          textLen: (text ?? '').length,
+          textPreview: (text ?? '').slice(0, 300),
         })
+        return normalizePastedPlainText(text)
+      },
 
-        // Unwrap Word internal anchor links — TOC cross-references, named anchors,
-        // file:// paths, and internal #_Toc / #_Ref hrefs all produce link marks that
-        // corrupt TipTap's selection on click. Preserve only real external links.
-        const SAFE_HREF = /^(https?:|mailto:)/i
-        div.querySelectorAll('a').forEach(el => {
-          const href = el.getAttribute('href') ?? ''
-          const hasName = el.hasAttribute('name')
-          if (hasName || !SAFE_HREF.test(href)) {
-            el.replaceWith(...Array.from(el.childNodes))
-          }
+      transformPasted(slice, _view, plain) {
+        pasteDevLog('transformPasted', {
+          plain,
+          sliceContentSize: slice?.content?.size ?? 0,
+          openStart: slice?.openStart,
+          openEnd: slice?.openEnd,
         })
-
-        // Remove colgroup/col entirely — TipTap's table model only expects tableRow children
-        div.querySelectorAll('colgroup').forEach(el => el.remove())
-
-        // Strip colspan/rowspan before normalization so every cell is a simple 1×1 unit.
-        // Without this, a <td colspan="2"> counts as 1 cell but spans 2 columns, causing
-        // normalization to over-pad rows and leave fixTables with an inconsistent table.
-        div.querySelectorAll('td, th').forEach(cell => {
-          cell.removeAttribute('colspan')
-          cell.removeAttribute('rowspan')
-        })
-
-        // Normalize rows to equal cell counts so fixTables never dispatches a
-        // correction transaction (which corrupts ProseMirror's descriptor positions)
-        div.querySelectorAll('table').forEach(table => {
-          const rows = Array.from(table.querySelectorAll('tr'))
-          if (!rows.length) return
-          const maxCells = Math.max(...rows.map(r => r.querySelectorAll('td, th').length))
-          rows.forEach(row => {
-            const deficit = maxCells - row.querySelectorAll('td, th').length
-            for (let i = 0; i < deficit; i++) {
-              const td = document.createElement('td')
-              td.appendChild(document.createElement('p'))
-              row.appendChild(td)
-            }
-          })
-        })
-
-        // Wrap bare cell text in <p> to satisfy TipTap's block+ cell content requirement
-        div.querySelectorAll('td, th').forEach(cell => {
-          const hasBlock = Array.from(cell.childNodes).some(
-            n => n.nodeType === 1 && /^(p|h[1-6]|blockquote|pre|ul|ol)$/i.test(n.tagName)
-          )
-          if (!hasBlock && cell.childNodes.length) {
-            const p = document.createElement('p')
-            while (cell.firstChild) p.appendChild(cell.firstChild)
-            cell.appendChild(p)
-          }
-        })
-
-        // Strip presentational table attributes
-        const TABLE_ATTRS = ['width', 'height', 'valign', 'align', 'border',
-                             'cellspacing', 'cellpadding', 'bgcolor', 'bordercolor']
-        div.querySelectorAll('table,thead,tbody,tfoot,tr,th,td')
-           .forEach(el => TABLE_ATTRS.forEach(attr => el.removeAttribute(attr)))
-
-        return div.innerHTML
+        return slice
       },
 
       // Replace ProseMirror's coordsAtPos-based scroll with a native selection rect lookup.
@@ -246,6 +453,29 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
       },
     },
   })
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !editor) return undefined
+    const w = window
+    w.__blogIntakeDumpEditor = () => editor.getJSON()
+    w.__blogIntakePasteDocStats = () => {
+      const doc = editor.getJSON()
+      return {
+        jsonChars: JSON.stringify(doc).length,
+        codeBlocks: countNodesByType(doc, 'codeBlock'),
+        tables: countNodesByType(doc, 'table'),
+      }
+    }
+    return () => {
+      delete w.__blogIntakeDumpEditor
+      delete w.__blogIntakePasteDocStats
+      delete w.__blogIntakeLastPaste
+    }
+  }, [editor])
+
+  useEffect(() => () => {
+    if (markdownDebounceRef.current) clearTimeout(markdownDebounceRef.current)
+  }, [])
 
   useImperativeHandle(ref, () => ({
     getMarkdown: () => htmlTablesToGFM(editor?.storage.markdown?.getMarkdown() ?? ''),

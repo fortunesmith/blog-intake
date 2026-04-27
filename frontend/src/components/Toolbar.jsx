@@ -52,6 +52,11 @@ export default function Toolbar({ editor, onImageInsert }) {
   const tableRowsRef = useRef(null)
   const tablePopoverRef = useRef(null)
 
+  const [showOrderedPopover, setShowOrderedPopover] = useState(false)
+  const [orderedStartInput, setOrderedStartInput] = useState('1')
+  const orderedStartInputRef = useRef(null)
+  const orderedPopoverRef = useRef(null)
+
   useEffect(() => {
     if (showLinkPopover) {
       setLinkUrl(editor?.getAttributes('link').href ?? '')
@@ -67,7 +72,7 @@ export default function Toolbar({ editor, onImageInsert }) {
   }, [showTablePopover])
 
   useEffect(() => {
-    if (!showLinkPopover && !showTablePopover) return
+    if (!showLinkPopover && !showTablePopover && !showOrderedPopover) return
     const handleOutside = (e) => {
       if (showLinkPopover && linkPopoverRef.current && !linkPopoverRef.current.contains(e.target)) {
         setShowLinkPopover(false)
@@ -75,10 +80,22 @@ export default function Toolbar({ editor, onImageInsert }) {
       if (showTablePopover && tablePopoverRef.current && !tablePopoverRef.current.contains(e.target)) {
         setShowTablePopover(false)
       }
+      if (showOrderedPopover && orderedPopoverRef.current && !orderedPopoverRef.current.contains(e.target)) {
+        setShowOrderedPopover(false)
+      }
     }
     document.addEventListener('mousedown', handleOutside)
     return () => document.removeEventListener('mousedown', handleOutside)
-  }, [showLinkPopover, showTablePopover])
+  }, [showLinkPopover, showTablePopover, showOrderedPopover])
+
+  useEffect(() => {
+    if (!showOrderedPopover || !editor) return
+    const start = editor.isActive('orderedList')
+      ? (editor.getAttributes('orderedList').start ?? 1)
+      : 1
+    setOrderedStartInput(String(start))
+    setTimeout(() => orderedStartInputRef.current?.focus(), 50)
+  }, [showOrderedPopover, editor])
 
   if (!editor) return null
 
@@ -111,6 +128,27 @@ export default function Toolbar({ editor, onImageInsert }) {
   }
 
   const clampTableNum = (value, max) => Math.min(Math.max(1, Number(value) || 1), max)
+
+  const parseOrderedStart = () => {
+    const n = parseInt(orderedStartInput, 10)
+    if (Number.isNaN(n) || n < 1) return 1
+    return n
+  }
+
+  const applyOrderedPopover = () => {
+    const start = parseOrderedStart()
+    if (editor.isActive('orderedList')) {
+      editor.chain().focus().updateAttributes('orderedList', { start }).run()
+    } else {
+      editor.chain().focus().toggleOrderedList().updateAttributes('orderedList', { start }).run()
+    }
+    setShowOrderedPopover(false)
+  }
+
+  const removeOrderedNumbering = () => {
+    editor.chain().focus().toggleOrderedList().run()
+    setShowOrderedPopover(false)
+  }
 
   return (
     <>
@@ -149,9 +187,51 @@ export default function Toolbar({ editor, onImageInsert }) {
         <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
           <List className="w-3.5 h-3.5" />
         </ToolbarBtn>
-        <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">
-          <ListOrdered className="w-3.5 h-3.5" />
-        </ToolbarBtn>
+        <div className="relative" ref={orderedPopoverRef}>
+          <ToolbarBtn
+            onClick={() => setShowOrderedPopover((v) => !v)}
+            active={editor.isActive('orderedList') || showOrderedPopover}
+            title="Numbered list"
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+          </ToolbarBtn>
+          {showOrderedPopover && (
+            <div className="absolute left-0 top-10 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 space-y-2 min-w-52">
+              <div className="flex items-center gap-2">
+                <label htmlFor="ordered-start-input" className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  Start at
+                </label>
+                <input
+                  id="ordered-start-input"
+                  ref={orderedStartInputRef}
+                  type="number"
+                  min={1}
+                  value={orderedStartInput}
+                  onChange={(e) => setOrderedStartInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') applyOrderedPopover()
+                    if (e.key === 'Escape') setShowOrderedPopover(false)
+                  }}
+                  className="w-20 text-sm border border-gray-200 dark:border-gray-600 rounded px-2 py-1.5 focus:outline-none focus:border-blue-400 text-center bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                />
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); applyOrderedPopover() }}
+                  className="text-sm font-medium text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 px-3 py-1.5 rounded hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+              {editor.isActive('orderedList') && (
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); removeOrderedNumbering() }}
+                  className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                >
+                  Remove numbering
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <ToolbarBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Blockquote">
           <Quote className="w-3.5 h-3.5" />
         </ToolbarBtn>
