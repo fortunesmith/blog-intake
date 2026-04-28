@@ -158,11 +158,42 @@ export default function Toolbar({ editor, onImageInsert }) {
 
   const applyOrderedPopover = () => {
     const start = parseOrderedStart()
+
     if (editor.isActive('orderedList')) {
-      editor.chain().focus().updateAttributes('orderedList', { start }).run()
+      const { $from } = editor.state.selection
+      let listDepth = -1
+      for (let d = $from.depth; d >= 0; d--) {
+        if ($from.node(d).type.name === 'orderedList') { listDepth = d; break }
+      }
+
+      const atFirstItem = listDepth >= 0 && $from.index(listDepth) === 0
+
+      if (atFirstItem) {
+        editor.chain().focus().updateAttributes('orderedList', { start }).run()
+      } else {
+        // Split the orderedList at the cursor's item so items before the cursor
+        // keep the original start and the cursor item onward becomes a new
+        // independent list with the new start number.
+        editor.chain().focus().command(({ tr, state: s }) => {
+          const { $from: $f } = s.selection
+          let depth = -1
+          for (let d = $f.depth; d >= 0; d--) {
+            if ($f.node(d).type.name === 'orderedList') { depth = d; break }
+          }
+          if (depth < 0) return false
+          const splitPos = $f.before(depth + 1)
+          const olType = s.schema.nodes.orderedList
+          tr.split(splitPos, 1, [{ type: olType, attrs: { start } }])
+          return true
+        }).run()
+      }
     } else {
-      editor.chain().focus().toggleOrderedList().updateAttributes('orderedList', { start }).run()
+      // Use wrapInList instead of toggleOrderedList — wrapInList does NOT call
+      // joinListBackwards/joinListForwards, so the new list stays independent
+      // from any adjacent ordered list above it.
+      editor.chain().focus().wrapInList('orderedList', { start }).run()
     }
+
     setShowOrderedPopover(false)
   }
 
