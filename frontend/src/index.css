@@ -449,6 +449,65 @@ body {
   background: #fbbf24;
 }
 
+/* ── Vidcast embed placeholder (M4) ────────────────────────────────
+   Editor-only: Vidcast.js's renderHTML outputs this card directly as a
+   ProseMirror atom node — deliberately never a live <iframe>, to avoid
+   loading a remote embed on every keystroke/render while editing. The
+   real <iframe> only exists in the exported Markdown and the Preview
+   pane's rendered HTML (Preview.jsx), both of which bypass this file
+   entirely since the exported block carries its own inline styles. */
+.ProseMirror div[data-vidcast] {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  cursor: default;
+}
+
+.ProseMirror div[data-vidcast]::before {
+  content: "▶";
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 0.8rem;
+}
+
+.ProseMirror div[data-vidcast] .vidcast-card-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.ProseMirror div[data-vidcast] .vidcast-card-url {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+.dark .ProseMirror div[data-vidcast] {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+.dark .ProseMirror div[data-vidcast] .vidcast-card-title {
+  color: #e5e7eb;
+}
+
+.dark .ProseMirror div[data-vidcast] .vidcast-card-url {
+  color: #6b7280;
+}
+
 /* ── Markdown preview — mirrors editor typography ─────────────────── */
 .preview-content {
   font-size: 1rem;

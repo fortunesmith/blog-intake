@@ -8,9 +8,10 @@ import {
   Link, Image, Table, Minus,
   Rows2, Columns2, Trash2,
   ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine,
-  MessageSquareWarning, Info, AlertTriangle,
+  MessageSquareWarning, Info, AlertTriangle, Video,
 } from 'lucide-react'
 import ImageInsertModal from './ImageInsertModal'
+import VidcastModal from './VidcastModal'
 
 function ToolbarBtn({ onClick, active, disabled, title, children }) {
   return (
@@ -66,6 +67,7 @@ const CALLOUT_OPTIONS = [
 
 export default function Toolbar({ editor, onImageInsert }) {
   const [showImageModal, setShowImageModal] = useState(false)
+  const [showVidcastModal, setShowVidcastModal] = useState(false)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
   const [linkError, setLinkError] = useState(false)
@@ -171,6 +173,10 @@ export default function Toolbar({ editor, onImageInsert }) {
   const handleImageInsert = ({ objectUrl, filename, alt }) => {
     editor.chain().focus().setImage({ src: objectUrl, alt, title: filename }).run()
     onImageInsert(objectUrl, filename)
+  }
+
+  const handleVidcastInsert = ({ src, title }) => {
+    editor.chain().focus().setVidcast({ src, title }).run()
   }
 
   const applyTable = () => {
@@ -457,6 +463,10 @@ export default function Toolbar({ editor, onImageInsert }) {
           <Image className="w-3.5 h-3.5" />
         </ToolbarBtn>
 
+        <ToolbarBtn onClick={() => setShowVidcastModal(true)} title="Insert Vidcast video">
+          <Video className="w-3.5 h-3.5" />
+        </ToolbarBtn>
+
         <div className="relative" ref={tablePopoverRef}>
           <ToolbarBtn
             onClick={() => setShowTablePopover((v) => !v)}
@@ -555,6 +565,13 @@ export default function Toolbar({ editor, onImageInsert }) {
         <ImageInsertModal
           onInsert={handleImageInsert}
           onClose={() => setShowImageModal(false)}
+        />
+      )}
+
+      {showVidcastModal && (
+        <VidcastModal
+          onInsert={handleVidcastInsert}
+          onClose={() => setShowVidcastModal(false)}
         />
       )}
     </>

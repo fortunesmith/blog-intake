@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import rehypeHighlight from 'rehype-highlight'
+import { visit } from 'unist-util-visit'
 import bash from 'highlight.js/lib/languages/bash'
 import javascript from 'highlight.js/lib/languages/javascript'
 import json from 'highlight.js/lib/languages/json'
@@ -26,17 +27,45 @@ import xml from 'highlight.js/lib/languages/xml'
 // sanitized, <callout type="..."> is rendered by react-markdown as a plain
 // custom element (no React component mapping needed) and styled via CSS
 // attribute selectors, same approach as the editor's own data-callout div.
+// Vidcast.js serializes its node as a raw HTML block: a wrapper <div style="…">
+// (for the aspect-ratio box) around the real <iframe src="https://app.vidcast.io/…">.
+// `div` is already in the default schema (just without `style`); `iframe` is not
+// in it at all by default (rehype-sanitize follows GitHub's markup rules, which
+// don't allow iframes), so both the tag and its specific attributes need adding
+// here. rehypeVidcastGuard (below) is the narrower, second check this schema
+// can't express on its own: allowlisting *which* attributes an iframe may carry
+// says nothing about the *value* of its src, so without that second check any
+// <iframe src="..."> pasted or typed directly into the Markdown view would
+// render with whatever origin it named.
 const PREVIEW_SANITIZE_SCHEMA = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), 'callout'],
+  tagNames: [...(defaultSchema.tagNames ?? []), 'callout', 'iframe'],
   attributes: {
     ...defaultSchema.attributes,
     callout: ['type'],
+    div: [...(defaultSchema.attributes?.div ?? []), 'style'],
+    iframe: ['src', 'width', 'height', 'title', 'loading', 'allow', 'style'],
   },
   protocols: {
     ...defaultSchema.protocols,
     src: [...defaultSchema.protocols.src, 'blob'],
   },
+}
+
+const VIDCAST_SRC_PREFIX = 'https://app.vidcast.io/'
+
+// Strips any <iframe> whose src isn't an https://app.vidcast.io/ URL — see
+// the schema comment above for why this can't be expressed as a schema rule.
+function rehypeVidcastGuard() {
+  return (tree) => {
+    visit(tree, 'element', (node, index, parent) => {
+      if (node.tagName !== 'iframe' || !parent || index === undefined) return
+      const src = node.properties?.src
+      if (typeof src === 'string' && src.startsWith(VIDCAST_SRC_PREFIX)) return
+      parent.children.splice(index, 1)
+      return index
+    })
+  }
 }
 
 // Mirrors the toolbar's fixed code-block language list (Toolbar.jsx) —
@@ -58,6 +87,7 @@ const REMARK_PLUGINS = [remarkGfm]
 const REHYPE_PLUGINS = [
   rehypeRaw,
   [rehypeSanitize, PREVIEW_SANITIZE_SCHEMA],
+  rehypeVidcastGuard,
   [rehypeHighlight, { languages: HIGHLIGHT_LANGUAGES, aliases: HIGHLIGHT_ALIASES }],
 ]
 
