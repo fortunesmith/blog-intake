@@ -3,6 +3,12 @@ import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
+import rehypeHighlight from 'rehype-highlight'
+import bash from 'highlight.js/lib/languages/bash'
+import javascript from 'highlight.js/lib/languages/javascript'
+import json from 'highlight.js/lib/languages/json'
+import python from 'highlight.js/lib/languages/python'
+import xml from 'highlight.js/lib/languages/xml'
 
 // Extend the default (GitHub-style) sanitize schema to also allow `blob:`
 // object URLs for <img src>. Inserted images use blob: URLs while editing —
@@ -19,8 +25,27 @@ const PREVIEW_SANITIZE_SCHEMA = {
   },
 }
 
+// Mirrors the toolbar's fixed code-block language list (Toolbar.jsx) —
+// registering only these 5 highlight.js grammars (rather than the ~190
+// available, or even rehype-highlight's default 37-language "common" set)
+// keeps the bundle small since authors can't select any language outside
+// this list anyway. "html" isn't a distinct grammar; it's aliased to "xml"
+// below, matching how highlight.js itself treats markup languages.
+const HIGHLIGHT_LANGUAGES = { bash, javascript, json, python, xml }
+const HIGHLIGHT_ALIASES = { xml: 'html' }
+
 const REMARK_PLUGINS = [remarkGfm]
-const REHYPE_PLUGINS = [rehypeRaw, [rehypeSanitize, PREVIEW_SANITIZE_SCHEMA]]
+// rehypeHighlight runs *after* rehypeSanitize, not before: sanitize is the
+// security boundary for author-controlled markup (including the "raw" HTML
+// rehypeRaw parses), while the <span class="hljs-*"> wrappers rehypeHighlight
+// adds afterward are entirely plugin-generated — never sanitized user
+// input — so nothing needs to reach back into PREVIEW_SANITIZE_SCHEMA to
+// allow them through. This is rehype-highlight's own documented ordering.
+const REHYPE_PLUGINS = [
+  rehypeRaw,
+  [rehypeSanitize, PREVIEW_SANITIZE_SCHEMA],
+  [rehypeHighlight, { languages: HIGHLIGHT_LANGUAGES, aliases: HIGHLIGHT_ALIASES }],
+]
 
 // react-markdown applies its own URL allowlist on top of rehype-sanitize
 // (independent of the schema above), and its default only allows

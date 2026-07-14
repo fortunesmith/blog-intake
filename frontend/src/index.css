@@ -412,6 +412,63 @@ body {
   font-size: inherit;
 }
 
+/* ── Syntax highlighting (rehype-highlight / highlight.js tokens) ──────
+   .preview-content pre always has a fixed dark background regardless of
+   the app's own light/dark mode (see above), so these colors only need
+   one variant — not a .dark pair like the rest of this file. */
+.preview-content .hljs-comment,
+.preview-content .hljs-quote {
+  color: #6c7086;
+  font-style: italic;
+}
+
+.preview-content .hljs-keyword,
+.preview-content .hljs-selector-tag,
+.preview-content .hljs-literal {
+  color: #cba6f7;
+}
+
+.preview-content .hljs-string,
+.preview-content .hljs-doctag,
+.preview-content .hljs-regexp {
+  color: #a6e3a1;
+}
+
+.preview-content .hljs-number {
+  color: #fab387;
+}
+
+.preview-content .hljs-title,
+.preview-content .hljs-section {
+  color: #89b4fa;
+}
+
+.preview-content .hljs-name,
+.preview-content .hljs-tag {
+  color: #f38ba8;
+}
+
+.preview-content .hljs-attr,
+.preview-content .hljs-attribute,
+.preview-content .hljs-variable,
+.preview-content .hljs-template-variable {
+  color: #f9e2af;
+}
+
+.preview-content .hljs-built_in,
+.preview-content .hljs-builtin-name {
+  color: #94e2d5;
+}
+
+.preview-content .hljs-meta {
+  color: #6c7086;
+}
+
+.preview-content .hljs-symbol,
+.preview-content .hljs-bullet {
+  color: #cdd6f4;
+}
+
 .preview-content blockquote {
   border-left: 3px solid #d1d5db;
   padding-left: 1rem;
