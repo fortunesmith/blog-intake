@@ -8,6 +8,7 @@ import {
   Link, Image, Table, Minus,
   Rows2, Columns2, Trash2,
   ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine,
+  MessageSquareWarning, Info, AlertTriangle,
 } from 'lucide-react'
 import ImageInsertModal from './ImageInsertModal'
 
@@ -55,6 +56,14 @@ const CODE_BLOCK_LANGUAGES = [
   { value: 'python',     label: 'Python' },
 ]
 
+// Matches Callout.js's CALLOUT_TYPES — kept as a separate, UI-specific list
+// here (icons + labels) rather than imported, since the node's own attribute
+// parseHTML already falls back safely to 'info' for any unrecognized value.
+const CALLOUT_OPTIONS = [
+  { type: 'info',    label: 'Info',    Icon: Info },
+  { type: 'warning', label: 'Warning', Icon: AlertTriangle },
+]
+
 export default function Toolbar({ editor, onImageInsert }) {
   const [showImageModal, setShowImageModal] = useState(false)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
@@ -74,6 +83,9 @@ export default function Toolbar({ editor, onImageInsert }) {
   const orderedStartInputRef = useRef(null)
   const orderedPopoverRef = useRef(null)
 
+  const [showCalloutPopover, setShowCalloutPopover] = useState(false)
+  const calloutPopoverRef = useRef(null)
+
   useEffect(() => {
     if (showLinkPopover) {
       setLinkUrl(editor?.getAttributes('link').href ?? '')
@@ -89,7 +101,7 @@ export default function Toolbar({ editor, onImageInsert }) {
   }, [showTablePopover])
 
   useEffect(() => {
-    if (!showLinkPopover && !showTablePopover && !showOrderedPopover) return
+    if (!showLinkPopover && !showTablePopover && !showOrderedPopover && !showCalloutPopover) return
     const handleOutside = (e) => {
       if (showLinkPopover && linkPopoverRef.current && !linkPopoverRef.current.contains(e.target)) {
         setShowLinkPopover(false)
@@ -100,10 +112,13 @@ export default function Toolbar({ editor, onImageInsert }) {
       if (showOrderedPopover && orderedPopoverRef.current && !orderedPopoverRef.current.contains(e.target)) {
         setShowOrderedPopover(false)
       }
+      if (showCalloutPopover && calloutPopoverRef.current && !calloutPopoverRef.current.contains(e.target)) {
+        setShowCalloutPopover(false)
+      }
     }
     document.addEventListener('mousedown', handleOutside)
     return () => document.removeEventListener('mousedown', handleOutside)
-  }, [showLinkPopover, showTablePopover, showOrderedPopover])
+  }, [showLinkPopover, showTablePopover, showOrderedPopover, showCalloutPopover])
 
   useEffect(() => {
     if (!showOrderedPopover || !editor) return
@@ -131,6 +146,7 @@ export default function Toolbar({ editor, onImageInsert }) {
       codeBlock:   e.isActive('codeBlock'),
       link:        e.isActive('link'),
       table:       e.isActive('table'),
+      callout:     e.isActive('callout'),
     }),
   })
 
@@ -232,6 +248,23 @@ export default function Toolbar({ editor, onImageInsert }) {
         content: text ? [{ type: 'text', text }] : [],
       })
       .run()
+  }
+
+  // Wraps the current text selection as the new callout's content, if there
+  // is one; with a collapsed cursor, inserts an empty callout to type into.
+  // A space (not '\n') joins any spanned blocks — callouts are single-line.
+  const insertCallout = (type) => {
+    const { state } = editor
+    const { from, to } = state.selection
+    const text = state.doc.textBetween(from, to, ' ', ' ')
+    editor.chain().focus()
+      .insertContentAt({ from, to }, {
+        type: 'callout',
+        attrs: { type },
+        content: text ? [{ type: 'text', text }] : [],
+      })
+      .run()
+    setShowCalloutPopover(false)
   }
 
   return (
@@ -349,6 +382,30 @@ export default function Toolbar({ editor, onImageInsert }) {
             ))}
           </select>
         )}
+
+        <div className="relative" ref={calloutPopoverRef}>
+          <ToolbarBtn
+            onClick={() => setShowCalloutPopover((v) => !v)}
+            active={fmt.callout || showCalloutPopover}
+            title="Callout"
+          >
+            <MessageSquareWarning className="w-3.5 h-3.5" />
+          </ToolbarBtn>
+          {showCalloutPopover && (
+            <div className="absolute left-0 top-10 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-1.5 min-w-36">
+              {CALLOUT_OPTIONS.map(({ type, label, Icon }) => (
+                <button
+                  key={type}
+                  onMouseDown={(e) => { e.preventDefault(); insertCallout(type) }}
+                  className="w-full flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 px-2.5 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <Divider />
 

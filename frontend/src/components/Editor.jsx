@@ -6,6 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
 import { Markdown } from 'tiptap-markdown'
+import Callout from '../extensions/Callout'
 import Toolbar from './Toolbar'
 
 const STORAGE_KEY = 'blog-intake-draft'
@@ -441,6 +442,7 @@ const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, r
       TableRow,
       TableHeader,
       TableCell,
+      Callout,
       Markdown.configure({ html: true, tightLists: true, linkify: false }),
       PastePlainShortcut,
     ],

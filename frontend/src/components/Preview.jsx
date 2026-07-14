@@ -17,8 +17,22 @@ import xml from 'highlight.js/lib/languages/xml'
 // strip the src attribute, so no inserted image ever renders here. blob:
 // URLs only ever resolve to same-session, same-origin browser objects, so
 // allowing them for this one attribute doesn't reopen any injection vector.
+// Callout.js serializes its node as a raw HTML block:
+//   <div><Callout type="info">plain text</Callout></div>
+// rehype-raw's HTML parser lowercases the custom tag to <callout> (standard
+// HTML parsing behavior for unrecognized tag names) — that's expected, and
+// only affects this preview rendering, not the exported Markdown, which
+// keeps the original <Callout> capitalization Contentstack expects. Once
+// sanitized, <callout type="..."> is rendered by react-markdown as a plain
+// custom element (no React component mapping needed) and styled via CSS
+// attribute selectors, same approach as the editor's own data-callout div.
 const PREVIEW_SANITIZE_SCHEMA = {
   ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'callout'],
+  attributes: {
+    ...defaultSchema.attributes,
+    callout: ['type'],
+  },
   protocols: {
     ...defaultSchema.protocols,
     src: [...defaultSchema.protocols.src, 'blob'],

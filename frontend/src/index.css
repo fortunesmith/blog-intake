@@ -364,6 +364,91 @@ body {
   color: #6b7280;
 }
 
+/* ── Callout blocks (M3) ────────────────────────────────────────────
+   Shared rules for both contexts, since the visuals are identical:
+   - Editor: Callout.js's renderHTML outputs <div data-callout="info">
+     directly as a ProseMirror block node.
+   - Preview: the exported <div><Callout type="info">…</Callout></div>
+     HTML block is sanitized and rendered as a plain <callout type="info">
+     custom element (see Preview.jsx) nested one level inside a plain,
+     unstyled wrapper <div> — the descendant selector below still matches
+     it regardless of that extra wrapper. */
+.ProseMirror div[data-callout],
+.preview-content callout {
+  display: block;
+  position: relative;
+  margin: 1rem 0;
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  border-radius: 6px;
+  border-left: 3px solid;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+.ProseMirror div[data-callout]::before,
+.preview-content callout::before {
+  position: absolute;
+  left: 0.9rem;
+  top: 0.8rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.ProseMirror div[data-callout="info"],
+.preview-content callout[type="info"] {
+  background: #eff6ff;
+  border-left-color: #3b82f6;
+  color: #1e40af;
+}
+.ProseMirror div[data-callout="info"]::before,
+.preview-content callout[type="info"]::before {
+  content: "i";
+  background: #3b82f6;
+}
+
+.ProseMirror div[data-callout="warning"],
+.preview-content callout[type="warning"] {
+  background: #fffbeb;
+  border-left-color: #f59e0b;
+  color: #92400e;
+}
+.ProseMirror div[data-callout="warning"]::before,
+.preview-content callout[type="warning"]::before {
+  content: "!";
+  background: #f59e0b;
+}
+
+.dark .ProseMirror div[data-callout="info"],
+.dark .preview-content callout[type="info"] {
+  background: rgba(59, 130, 246, 0.12);
+  border-left-color: #60a5fa;
+  color: #bfdbfe;
+}
+.dark .ProseMirror div[data-callout="info"]::before,
+.dark .preview-content callout[type="info"]::before {
+  background: #60a5fa;
+}
+
+.dark .ProseMirror div[data-callout="warning"],
+.dark .preview-content callout[type="warning"] {
+  background: rgba(245, 158, 11, 0.12);
+  border-left-color: #fbbf24;
+  color: #fde68a;
+}
+.dark .ProseMirror div[data-callout="warning"]::before,
+.dark .preview-content callout[type="warning"]::before {
+  background: #fbbf24;
+}
+
 /* ── Markdown preview — mirrors editor typography ─────────────────── */
 .preview-content {
   font-size: 1rem;
