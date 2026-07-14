@@ -14,7 +14,11 @@ const UNRESOLVED_IMAGE_RE = /!\[[^\]]*\]\(blob:/
 
 function initMetadata() {
   const draft = loadDraft()
-  return draft?.metadata ?? { title: '', author: '', date: '' }
+  return {
+    title: '', author: '', date: '',
+    bannerFilename: '', bannerObjectUrl: '', teaser: '', tags: '',
+    ...(draft?.metadata ?? {}),
+  }
 }
 
 function initDark() {
@@ -62,17 +66,25 @@ export default function App() {
   // that string flows unmodified into markdownContent until export-time
   // filename substitution — so its continued presence here is a reliable
   // signal the image is still referenced somewhere in the document.
+  //
+  // The banner image (M2) is a special case: its objectUrl never appears in
+  // markdownContent (it's only ever written into the YAML front matter as a
+  // plain filename, via metadata.bannerFilename) — so it's checked against
+  // metadata.bannerObjectUrl instead, to avoid this effect wrongly pruning
+  // the currently-selected banner.
   useEffect(() => {
     let changed = false
     for (const objectUrl of imageMapRef.current.keys()) {
-      if (!markdownContent.includes(objectUrl)) {
+      const inBody = markdownContent.includes(objectUrl)
+      const isBanner = objectUrl === metadata.bannerObjectUrl
+      if (!inBody && !isBanner) {
         URL.revokeObjectURL(objectUrl)
         imageMapRef.current.delete(objectUrl)
         changed = true
       }
     }
     if (changed) setHasImages(imageMapRef.current.size > 0)
-  }, [markdownContent])
+  }, [markdownContent, metadata.bannerObjectUrl])
 
   const handleMetadataChange = (updated) => {
     setMetadata(updated)
@@ -84,17 +96,35 @@ export default function App() {
   // that must be escaped; everything else is literal.
   const yamlEscape = (str) => str.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 
+  // Multi-line scalar (YAML literal block) — used for a teaser that spans
+  // more than one line, since a double-quoted scalar can't contain a raw
+  // newline.
+  const yamlLiteralBlock = (str) =>
+    '|\n' + str.split('\n').map((line) => `  ${line}`).join('\n')
+
+  // Comma-separated input -> a YAML block sequence, one quoted+escaped
+  // scalar per non-empty trimmed tag.
+  const yamlSequence = (csv) =>
+    csv.split(',').map((t) => t.trim()).filter(Boolean)
+      .map((t) => `  - "${yamlEscape(t)}"`).join('\n')
+
   const buildExportMarkdown = () => {
     let md = markdownContent
     imageMapRef.current.forEach((filename, objectUrl) => {
       md = md.split(objectUrl).join(filename)
     })
-    const { title, author, date } = metadata
-    if (title || author || date) {
+    const { title, author, date, bannerFilename, teaser, tags } = metadata
+    const tagLines = tags ? yamlSequence(tags) : ''
+    if (title || author || date || bannerFilename || teaser || tagLines) {
       const lines = ['---']
-      if (title)  lines.push(`title: "${yamlEscape(title)}"`)
-      if (author) lines.push(`author: "${yamlEscape(author)}"`)
-      if (date)   lines.push(`date: "${yamlEscape(date)}"`)
+      if (title)         lines.push(`title: "${yamlEscape(title)}"`)
+      if (author)        lines.push(`author: "${yamlEscape(author)}"`)
+      if (date)          lines.push(`date: "${yamlEscape(date)}"`)
+      if (bannerFilename) lines.push(`banner_image: "${yamlEscape(bannerFilename)}"`)
+      if (teaser) {
+        lines.push(`description: ${teaser.includes('\n') ? yamlLiteralBlock(teaser) : `"${yamlEscape(teaser)}"`}`)
+      }
+      if (tagLines) lines.push('tags:', tagLines)
       lines.push('---', '', '')
       md = lines.join('\n') + md
     }
@@ -124,9 +154,10 @@ export default function App() {
 
     // Don't ship a corrupted .md/.zip. This can happen if a draft was
     // restored (e.g. after closing and reopening the app) with an image
-    // node whose blob: URL is no longer tracked in imageMapRef (imageMapRef
-    // itself is never persisted across reloads).
-    if (UNRESOLVED_IMAGE_RE.test(md)) {
+    // node — or a banner image — whose blob: URL is no longer tracked in
+    // imageMapRef (imageMapRef itself is never persisted across reloads).
+    const bannerUnresolved = metadata.bannerObjectUrl && !imageMapRef.current.has(metadata.bannerObjectUrl)
+    if (UNRESOLVED_IMAGE_RE.test(md) || bannerUnresolved) {
       flagExportError('unresolved-image')
       return
     }
@@ -181,9 +212,32 @@ export default function App() {
     setHasImages(imageMapRef.current.size > 0)
   }
 
+  const handleBannerImageInsert = (objectUrl, filename) => {
+    const existingNames = new Set(imageMapRef.current.values())
+    const safeName = dedupeFilename(sanitizeFilename(filename), existingNames)
+    imageMapRef.current.set(objectUrl, safeName)
+    setHasImages(imageMapRef.current.size > 0)
+    // The previous banner's imageMapRef entry (if any) is cleaned up by the
+    // pruning effect once metadata.bannerObjectUrl below no longer matches it.
+    const updated = { ...metadata, bannerFilename: safeName, bannerObjectUrl: objectUrl }
+    setMetadata(updated)
+    saveDraft({ metadata: updated })
+  }
+
+  const handleBannerImageRemove = () => {
+    if (metadata.bannerObjectUrl) {
+      URL.revokeObjectURL(metadata.bannerObjectUrl)
+      imageMapRef.current.delete(metadata.bannerObjectUrl)
+      setHasImages(imageMapRef.current.size > 0)
+    }
+    const updated = { ...metadata, bannerFilename: '', bannerObjectUrl: '' }
+    setMetadata(updated)
+    saveDraft({ metadata: updated })
+  }
+
   const handleNewDocument = () => {
     editorRef.current?.reset()
-    const empty = { title: '', author: '', date: '' }
+    const empty = { title: '', author: '', date: '', bannerFilename: '', bannerObjectUrl: '', teaser: '', tags: '' }
     setMetadata(empty)
     imageMapRef.current.forEach((_, objectUrl) => URL.revokeObjectURL(objectUrl))
     imageMapRef.current = new Map()
@@ -282,7 +336,12 @@ export default function App() {
       </header>
 
       {/* ── Metadata ─────────────────────────────────────────────────── */}
-      <MetadataFields metadata={metadata} onChange={handleMetadataChange} />
+      <MetadataFields
+        metadata={metadata}
+        onChange={handleMetadataChange}
+        onBannerImageInsert={handleBannerImageInsert}
+        onBannerImageRemove={handleBannerImageRemove}
+      />
 
       {/* ── Editor + Preview panes ───────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row">
