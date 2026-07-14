@@ -39,6 +39,22 @@ const TABLE_MAX_ROWS = 10
 
 const ALLOWED_LINK_SCHEMES = /^(https?:\/\/|mailto:|\/|#)/i
 
+// Values match standard highlighter language identifiers (highlight.js/
+// Prism naming convention) rather than free text, so a code block's
+// language attribute is always one of a known, unambiguous set — not
+// whatever an author happens to type. "Shell / Bash" covers CLI examples
+// (e.g. `npm install`, `node app.js`); Node.js itself has no distinct
+// grammar from JavaScript in any mainstream highlighter.
+const CODE_BLOCK_LANGUAGES = [
+  { value: '',           label: 'Plain text' },
+  { value: 'json',       label: 'JSON' },
+  { value: 'xml',        label: 'XML' },
+  { value: 'html',       label: 'HTML' },
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'bash',       label: 'Shell / Bash' },
+  { value: 'python',     label: 'Python' },
+]
+
 export default function Toolbar({ editor, onImageInsert }) {
   const [showImageModal, setShowImageModal] = useState(false)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
@@ -314,17 +330,24 @@ export default function Toolbar({ editor, onImageInsert }) {
           <Code2 className="w-3.5 h-3.5" />
         </ToolbarBtn>
 
-        {/* Code block language selector */}
+        {/* Code block language selector — a fixed list (rather than free
+            text) so every code block's language is one of a small,
+            unambiguous set of values a highlighter can actually recognize.
+            A <select> only fires onChange once per pick, not per
+            keystroke, so unlike a text input it's safe to include .focus()
+            here — it just returns focus to the code block after choosing. */}
         {fmt.codeBlock && (
-          <input
-            type="text"
-            placeholder="language"
+          <select
             value={editor.getAttributes('codeBlock').language ?? ''}
             onChange={(e) =>
               editor.chain().focus().updateAttributes('codeBlock', { language: e.target.value || null }).run()
             }
-            className="ml-1 text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-0.5 w-24 focus:outline-none focus:border-gray-400 dark:focus:border-gray-400 font-mono bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200"
-          />
+            className="ml-1 text-xs border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 focus:outline-none focus:border-gray-400 dark:focus:border-gray-400 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 cursor-pointer"
+          >
+            {CODE_BLOCK_LANGUAGES.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
         )}
 
         <Divider />
