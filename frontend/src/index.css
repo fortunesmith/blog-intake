@@ -1,13 +1,131 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── Cisco Sans — internal font, licensed for Cisco-internal apps only ──
+   (developer.webex.com/blog intake tool). Each weight/style below is a
+   separate static font file; font-weight values are mapped to the
+   standard CSS scale rather than the file's own (non-standard) internal
+   usWeightClass, so normal font-weight utilities/CSS just work. */
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTThin.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTThin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTThinOblique.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTThinOblique.ttf") format("truetype");
+  font-weight: 100;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTExtraLight.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTExtraLight.ttf") format("truetype");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTExtraLightOblique.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTExtraLightOblique.ttf") format("truetype");
+  font-weight: 200;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTLight.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTLight.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTLightOblique.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTLightOblique.ttf") format("truetype");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTRegular.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTRegular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTRegularOblique.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTRegularOblique.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTMedium.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTMedium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTMediumOblique.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTMediumOblique.ttf") format("truetype");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTBold.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTBold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTBoldOblique.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTBoldOblique.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTHeavy.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTHeavy.ttf") format("truetype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "CiscoSans";
+  src: url("/fonts/CiscoSansTTHeavyOblique.woff2") format("woff2"),
+       url("/fonts/CiscoSansTTHeavyOblique.ttf") format("truetype");
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: "CiscoSans", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   background: #fff;
   color: #111827;
