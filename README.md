@@ -11,11 +11,11 @@ A purpose-built blog intake experience for contributing authors. Write directly 
 | Frontend | React (Vite) |
 | Rich Text Editor | TipTap with tiptap-markdown extension |
 | Styling | Tailwind CSS |
-| Local Server | Flask dev server (V1) / Gunicorn (V3 hosted) |
+| Local Server | Flask dev server (V1–V2) / Gunicorn (V3 hosted) |
 
-## Local Development (V1)
+## Local Development
 
-V1 runs as a locally served web app. Each user pulls down the repo and runs the dev server on their own machine.
+Each user pulls down the repo and runs the app on their own machine — no hosting required for V1 or V2.
 
 ### Prerequisites
 
@@ -40,18 +40,36 @@ cd frontend
 npm install
 ```
 
-### Running the app
+### Running the app (two servers, for development)
+
+As of V2, exporting a post that includes images calls a small Flask API
+(`POST /api/export`) to bundle the Markdown and images into a `.zip`. During
+development this means running **both** servers side by side:
 
 ```bash
+# Terminal 1 — backend API (port 5000)
+cd backend
+source venv/bin/activate
+python app.py
+```
+
+```bash
+# Terminal 2 — frontend dev server (port 5173)
 cd frontend
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5173](http://localhost:5173) in your browser. Vite
+proxies any `/api/*` request to the Flask server on port 5000, so the app
+talks to a single origin from the browser's point of view.
 
-> The Flask backend is scaffolded but has no active role in V1. All Markdown conversion happens client-side via TipTap.
+> If the Flask server isn't running, exporting a post with **no** images
+> still works (it's a plain client-side `.md` download). Exporting a post
+> **with** images requires Flask to be running, since it needs the server
+> to build the `.zip`; the Export button will show "Export failed" with a
+> tooltip if the request can't reach the backend.
 
-### Build and serve via Flask (optional)
+### Build and serve via Flask (single server)
 
 ```bash
 cd frontend
@@ -62,7 +80,9 @@ source venv/bin/activate
 python app.py
 ```
 
-Open [http://localhost:5000](http://localhost:5000) in your browser.
+Open [http://localhost:5000](http://localhost:5000) in your browser. Flask
+serves the built frontend and the `/api/export` route from the same origin,
+so no proxy is needed.
 
 ## Project Structure
 

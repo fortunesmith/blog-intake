@@ -1,11 +1,16 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { PenLine, Download, Copy, Check, FilePlus, Sun, Moon } from 'lucide-react'
+import { PenLine, Download, Copy, Check, FilePlus, Sun, Moon, TriangleAlert } from 'lucide-react'
 import Editor, { loadDraft, saveDraft, clearDraft } from './components/Editor'
 import MetadataFields from './components/MetadataFields'
 import Preview from './components/Preview'
 import ConfirmModal from './components/ConfirmModal'
+import { sanitizeFilename, dedupeFilename } from './utils/sanitizeFilename'
 
 const VIEW_MODES = ['edit', 'split', 'preview']
+
+// Matches an image reference whose src never got swapped for a real
+// filename — i.e. buildExportMarkdown had no imageMapRef entry for it.
+const UNRESOLVED_IMAGE_RE = /!\[[^\]]*\]\(blob:/
 
 function initMetadata() {
   const draft = loadDraft()
@@ -27,6 +32,12 @@ export default function App() {
   const [copyError, setCopyError] = useState(false)
   const [showNewDocModal, setShowNewDocModal] = useState(false)
   const [isDark, setIsDark] = useState(initDark)
+  const [hasImages, setHasImages] = useState(false)
+  // null (no error) | 'network' (Flask unreachable) | 'unresolved-image'
+  // (a blob: reference survived substitution — e.g. a draft restored after
+  // the page reloaded, leaving an image node with no matching imageMapRef entry)
+  const [exportError, setExportError] = useState(null)
+  const exportErrorTimeoutRef = useRef(null)
 
   useEffect(() => {
     const root = document.documentElement
@@ -41,6 +52,27 @@ export default function App() {
   useEffect(() => {
     return () => clearTimeout(copyTimeoutRef.current)
   }, [])
+
+  useEffect(() => {
+    return () => clearTimeout(exportErrorTimeoutRef.current)
+  }, [])
+
+  // Prune imageMapRef entries for images the author deleted from the editor.
+  // Toolbar.jsx sets each inserted image node's src to the raw objectUrl, and
+  // that string flows unmodified into markdownContent until export-time
+  // filename substitution — so its continued presence here is a reliable
+  // signal the image is still referenced somewhere in the document.
+  useEffect(() => {
+    let changed = false
+    for (const objectUrl of imageMapRef.current.keys()) {
+      if (!markdownContent.includes(objectUrl)) {
+        URL.revokeObjectURL(objectUrl)
+        imageMapRef.current.delete(objectUrl)
+        changed = true
+      }
+    }
+    if (changed) setHasImages(imageMapRef.current.size > 0)
+  }, [markdownContent])
 
   const handleMetadataChange = (updated) => {
     setMetadata(updated)
@@ -69,18 +101,61 @@ export default function App() {
     return md
   }
 
-  const handleExport = () => {
-    const md = buildExportMarkdown()
-    const blob = new Blob([md], { type: 'text/markdown' })
+  const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const flagExportError = (reason) => {
+    setExportError(reason)
+    clearTimeout(exportErrorTimeoutRef.current)
+    exportErrorTimeoutRef.current = setTimeout(() => setExportError(null), reason === 'unresolved-image' ? 8000 : 5000)
+  }
+
+  const handleExport = async () => {
+    const md = buildExportMarkdown()
     const slug = metadata.title
       ? metadata.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
       : 'blog-post'
-    a.download = `${slug}.md`
-    a.click()
-    URL.revokeObjectURL(url)
+
+    // Don't ship a corrupted .md/.zip. This can happen if a draft was
+    // restored (e.g. after closing and reopening the app) with an image
+    // node whose blob: URL is no longer tracked in imageMapRef (imageMapRef
+    // itself is never persisted across reloads).
+    if (UNRESOLVED_IMAGE_RE.test(md)) {
+      flagExportError('unresolved-image')
+      return
+    }
+
+    if (!hasImages) {
+      downloadBlob(new Blob([md], { type: 'text/markdown' }), `${slug}.md`)
+      return
+    }
+
+    setExportError(null)
+    try {
+      const formData = new FormData()
+      formData.append('markdown', md)
+      formData.append('slug', slug)
+      for (const [objectUrl, filename] of imageMapRef.current.entries()) {
+        const imageBlob = await fetch(objectUrl).then((r) => r.blob())
+        formData.append('images', imageBlob, filename)
+      }
+
+      const res = await fetch('/api/export', { method: 'POST', body: formData })
+      if (!res.ok) {
+        flagExportError('network')
+        return
+      }
+      downloadBlob(await res.blob(), `${slug}.zip`)
+    } catch {
+      // Most likely cause: the Flask dev server isn't running.
+      flagExportError('network')
+    }
   }
 
   const handleCopy = async () => {
@@ -100,7 +175,10 @@ export default function App() {
   const handleCloseNewDocModal = useCallback(() => setShowNewDocModal(false), [])
 
   const handleImageInsert = (objectUrl, filename) => {
-    imageMapRef.current.set(objectUrl, filename)
+    const existingNames = new Set(imageMapRef.current.values())
+    const safeName = dedupeFilename(sanitizeFilename(filename), existingNames)
+    imageMapRef.current.set(objectUrl, safeName)
+    setHasImages(imageMapRef.current.size > 0)
   }
 
   const handleNewDocument = () => {
@@ -109,6 +187,8 @@ export default function App() {
     setMetadata(empty)
     imageMapRef.current.forEach((_, objectUrl) => URL.revokeObjectURL(objectUrl))
     imageMapRef.current = new Map()
+    setHasImages(false)
+    setExportError(null)
     clearDraft()
   }
 
@@ -178,10 +258,25 @@ export default function App() {
           </button>
           <button
             onClick={handleExport}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
+            title={
+              exportError === 'network'
+                ? 'Start the Flask server (python app.py in backend/) to export images as a .zip'
+                : exportError === 'unresolved-image'
+                  ? "This document has an image that couldn't be resolved (often from a draft restored after the app was closed). Remove and re-insert it, then export again."
+                  : undefined
+            }
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              exportError
+                ? 'bg-red-600 text-white hover:bg-red-500'
+                : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-300'
+            }`}
           >
-            <Download className="w-3.5 h-3.5" />
-            Export .md
+            {exportError === 'network'
+              ? <><TriangleAlert className="w-3.5 h-3.5" />Export failed</>
+              : exportError === 'unresolved-image'
+                ? <><TriangleAlert className="w-3.5 h-3.5" />Fix image first</>
+                : <><Download className="w-3.5 h-3.5" />{hasImages ? 'Export .zip' : 'Export .md'}</>
+            }
           </button>
         </div>
       </header>

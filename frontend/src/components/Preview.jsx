@@ -1,11 +1,38 @@
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
+
+// Extend the default (GitHub-style) sanitize schema to also allow `blob:`
+// object URLs for <img src>. Inserted images use blob: URLs while editing —
+// the real filename swap only happens at export time — and the default
+// schema's protocol allowlist (http/https only) would otherwise silently
+// strip the src attribute, so no inserted image ever renders here. blob:
+// URLs only ever resolve to same-session, same-origin browser objects, so
+// allowing them for this one attribute doesn't reopen any injection vector.
+const PREVIEW_SANITIZE_SCHEMA = {
+  ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    src: [...defaultSchema.protocols.src, 'blob'],
+  },
+}
 
 const REMARK_PLUGINS = [remarkGfm]
-const REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize]
+const REHYPE_PLUGINS = [rehypeRaw, [rehypeSanitize, PREVIEW_SANITIZE_SCHEMA]]
+
+// react-markdown applies its own URL allowlist on top of rehype-sanitize
+// (independent of the schema above), and its default only allows
+// http(s)/irc(s)/mailto/xmpp — blob: would still be stripped without this,
+// even with the rehype-sanitize schema extended above. Scoped to img[src]
+// only, so link hrefs keep the original, stricter default behavior.
+function previewUrlTransform(url, key, node) {
+  if (node?.tagName === 'img' && key === 'src' && url.startsWith('blob:')) {
+    return url
+  }
+  return defaultUrlTransform(url)
+}
 
 export default function Preview({ markdown }) {
   const [view, setView] = useState('rendered')
@@ -43,7 +70,7 @@ export default function Preview({ markdown }) {
       {view === 'rendered' && (
         <div className="preview-content px-8 py-7">
           {markdown.trim() ? (
-            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{markdown}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} urlTransform={previewUrlTransform}>{markdown}</ReactMarkdown>
           ) : (
             <p className="text-gray-300 dark:text-gray-600 text-sm italic">Nothing to preview yet.</p>
           )}

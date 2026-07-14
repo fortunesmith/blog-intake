@@ -32,13 +32,14 @@ export default function ImageInsertModal({ onInsert, onClose }) {
   }
 
   const handleInsert = () => {
-    if (!file || !previewUrl) return
-    // Reuse the previewUrl already created by the useEffect rather than
-    // allocating a second object URL for the same file. The caller takes
-    // ownership of this URL; the useEffect cleanup is therefore cancelled
-    // by clearing the file state so it doesn't revoke the URL we just handed off.
-    const objectUrl = previewUrl
-    setFile(null) // prevents the useEffect cleanup from revoking objectUrl
+    if (!file) return
+    // Create a fresh object URL for the inserted image rather than handing
+    // off previewUrl. previewUrl's cleanup (below) runs on every `file`
+    // change, not just on unmount, so clearing `file` would immediately
+    // revoke it out from under the caller. This new URL is independent of
+    // the preview's lifecycle; the caller (imageMapRef in App.jsx) owns it
+    // and revokes it itself later (on "New document" or unmount).
+    const objectUrl = URL.createObjectURL(file)
     onInsert({ objectUrl, filename: file.name, alt })
     onClose()
   }
