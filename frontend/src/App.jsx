@@ -1,10 +1,17 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { PenLine, Download, Copy, Check, FilePlus, Sun, Moon, TriangleAlert } from 'lucide-react'
-import Editor, { loadDraft, saveDraft, clearDraft } from './components/Editor'
+import { PenLine, Download, Copy, Check, FilePlus, Sun, Moon, TriangleAlert, Save, FolderOpen } from 'lucide-react'
+import Editor, {
+  loadDraft, saveDraft, clearDraft,
+  listDrafts, saveNamedDraft, loadNamedDraft, deleteNamedDraft,
+} from './components/Editor'
 import MetadataFields from './components/MetadataFields'
 import Preview from './components/Preview'
 import ConfirmModal from './components/ConfirmModal'
+import SaveDraftModal from './components/SaveDraftModal'
+import DraftManager from './components/DraftManager'
 import { sanitizeFilename, dedupeFilename } from './utils/sanitizeFilename'
+
+const MIGRATION_PROMPTED_KEY = 'blog-intake-migration-prompted'
 
 const VIEW_MODES = ['edit', 'split', 'preview']
 
@@ -12,13 +19,13 @@ const VIEW_MODES = ['edit', 'split', 'preview']
 // filename — i.e. buildExportMarkdown had no imageMapRef entry for it.
 const UNRESOLVED_IMAGE_RE = /!\[[^\]]*\]\(blob:/
 
+function emptyMetadata() {
+  return { title: '', author: '', date: '', bannerFilename: '', bannerObjectUrl: '', teaser: '', tags: '' }
+}
+
 function initMetadata() {
   const draft = loadDraft()
-  return {
-    title: '', author: '', date: '',
-    bannerFilename: '', bannerObjectUrl: '', teaser: '', tags: '',
-    ...(draft?.metadata ?? {}),
-  }
+  return { ...emptyMetadata(), ...(draft?.metadata ?? {}) }
 }
 
 function initDark() {
@@ -42,6 +49,28 @@ export default function App() {
   // the page reloaded, leaving an image node with no matching imageMapRef entry)
   const [exportError, setExportError] = useState(null)
   const exportErrorTimeoutRef = useRef(null)
+  const [showSaveDraftModal, setShowSaveDraftModal] = useState(false)
+  const [showDraftManager, setShowDraftManager] = useState(false)
+  // One-time V1 -> V2 migration nudge: if there's an existing (unnamed)
+  // autosave draft and no named drafts yet, offer to save it as one so it
+  // isn't only reachable via the old single-slot autosave. Computed as a
+  // lazy initial state (rather than an effect + setState on mount) since it
+  // only ever needs to run once, before the first paint.
+  const [showMigrationPrompt, setShowMigrationPrompt] = useState(() => {
+    let alreadyPrompted = true
+    try {
+      alreadyPrompted = localStorage.getItem(MIGRATION_PROMPTED_KEY) === '1'
+    } catch {
+      /* localStorage unavailable — skip the prompt rather than risk asking every load */
+    }
+    return !alreadyPrompted && Boolean(loadDraft()) && listDrafts().length === 0
+  })
+  const [draftsVersion, setDraftsVersion] = useState(0)
+  // Bumped to force Editor to fully unmount/remount when loading a named
+  // draft, rather than calling editor.commands.setContent() on a live
+  // instance — see the useMemo(loadDraft) comment in Editor.jsx for why
+  // that path is best avoided for anything beyond an empty document.
+  const [editorInstanceKey, setEditorInstanceKey] = useState(0)
 
   useEffect(() => {
     const root = document.documentElement
@@ -237,13 +266,56 @@ export default function App() {
 
   const handleNewDocument = () => {
     editorRef.current?.reset()
-    const empty = { title: '', author: '', date: '', bannerFilename: '', bannerObjectUrl: '', teaser: '', tags: '' }
-    setMetadata(empty)
+    setMetadata(emptyMetadata())
     imageMapRef.current.forEach((_, objectUrl) => URL.revokeObjectURL(objectUrl))
     imageMapRef.current = new Map()
     setHasImages(false)
     setExportError(null)
     clearDraft()
+  }
+
+  const dismissMigrationPrompt = () => {
+    try {
+      localStorage.setItem(MIGRATION_PROMPTED_KEY, '1')
+    } catch {
+      /* localStorage unavailable */
+    }
+    setShowMigrationPrompt(false)
+  }
+
+  const handleSaveDraft = (name) => {
+    const current = loadDraft()
+    saveNamedDraft({ title: name, content: current?.content ?? '', metadata })
+    setDraftsVersion((v) => v + 1)
+  }
+
+  const handleSaveMigratedDraft = (name) => {
+    handleSaveDraft(name)
+    dismissMigrationPrompt()
+  }
+
+  // Loading a different draft is treated like opening a different document:
+  // metadata and the image map are fully replaced (same cleanup as New
+  // Document), and the loaded {content, metadata} is written into the
+  // autosave slot *before* remounting Editor, so its own
+  // useMemo(loadDraft) picks it up as initial content on mount.
+  const handleLoadDraft = (id) => {
+    const draft = loadNamedDraft(id)
+    if (!draft) return
+    const nextMetadata = { ...emptyMetadata(), ...(draft.metadata ?? {}) }
+    saveDraft({ content: draft.content ?? '', metadata: nextMetadata })
+    setMetadata(nextMetadata)
+    imageMapRef.current.forEach((_, objectUrl) => URL.revokeObjectURL(objectUrl))
+    imageMapRef.current = new Map()
+    setHasImages(false)
+    setExportError(null)
+    setEditorInstanceKey((k) => k + 1)
+    setShowDraftManager(false)
+  }
+
+  const handleDeleteDraft = (id) => {
+    deleteNamedDraft(id)
+    setDraftsVersion((v) => v + 1)
   }
 
   const showEditor  = viewMode === 'edit'  || viewMode === 'split'
@@ -259,11 +331,25 @@ export default function App() {
           <div className="w-px h-4 bg-gray-200 dark:bg-gray-700" />
           <button
             onClick={() => setShowNewDocModal(true)}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
             title="Start a new document"
           >
             <FilePlus className="w-4 h-4" />
             New
+          </button>
+          <button
+            onClick={() => setShowSaveDraftModal(true)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            title="Save the current post as a named draft"
+          >
+            <Save className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setShowDraftManager(true)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            title="Open saved drafts"
+          >
+            <FolderOpen className="w-4 h-4" />
           </button>
         </div>
 
@@ -347,6 +433,7 @@ export default function App() {
       <div className="flex flex-col sm:flex-row">
         <div className={`flex flex-col ${showPreview ? 'sm:w-1/2 w-full' : 'w-full'} ${!showEditor ? 'hidden' : ''}`}>
           <Editor
+            key={editorInstanceKey}
             ref={editorRef}
             onImageInsert={handleImageInsert}
             onMarkdownChange={setMarkdownContent}
@@ -367,6 +454,35 @@ export default function App() {
           confirmLabel="Clear and start new"
           onConfirm={handleNewDocument}
           onClose={handleCloseNewDocModal}
+        />
+      )}
+
+      {/* ── Named drafts (M5) ────────────────────────────────────────── */}
+      {showSaveDraftModal && (
+        <SaveDraftModal
+          defaultName={metadata.title || 'Untitled draft'}
+          onSave={handleSaveDraft}
+          onClose={() => setShowSaveDraftModal(false)}
+        />
+      )}
+
+      {showDraftManager && (
+        <DraftManager
+          key={draftsVersion}
+          drafts={listDrafts()}
+          onLoad={handleLoadDraft}
+          onDelete={handleDeleteDraft}
+          onClose={() => setShowDraftManager(false)}
+        />
+      )}
+
+      {showMigrationPrompt && (
+        <SaveDraftModal
+          defaultName={metadata.title || 'Migrated draft'}
+          description="We found a draft saved from before named drafts existed. Save it as one now so it's easy to find later?"
+          saveLabel="Save as draft"
+          onSave={handleSaveMigratedDraft}
+          onClose={dismissMigrationPrompt}
         />
       )}
     </div>

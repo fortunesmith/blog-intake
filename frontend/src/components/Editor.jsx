@@ -424,6 +424,75 @@ export function clearDraft() {
   }
 }
 
+const DRAFTS_INDEX_KEY = 'blog-intake-drafts-index'
+const NAMED_DRAFT_PREFIX = 'blog-intake-draft-'
+
+/**
+ * Named drafts (M5) live alongside the single autosave slot above, in their
+ * own keys — `blog-intake-drafts-index` holds the list shown in
+ * DraftManager.jsx ({id, title, savedAt}[]), and `blog-intake-draft-{id}`
+ * holds each one's actual {content, metadata} snapshot. The autosave slot
+ * itself is untouched by any of this; it keeps working exactly as before.
+ */
+export function listDrafts() {
+  try {
+    const raw = localStorage.getItem(DRAFTS_INDEX_KEY)
+    const index = raw ? JSON.parse(raw) : []
+    return Array.isArray(index) ? index : []
+  } catch {
+    return []
+  }
+}
+
+function writeDraftsIndex(index) {
+  try {
+    localStorage.setItem(DRAFTS_INDEX_KEY, JSON.stringify(index))
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+// Saves {content, metadata} as a new named draft, or overwrites an existing
+// one if `id` is passed and already present in the index. Returns the id
+// (existing or newly generated) on success, or null if localStorage write
+// failed (e.g. quota exceeded / private browsing).
+export function saveNamedDraft({ id, title, content, metadata }) {
+  const draftId = id ?? `d${Date.now()}${Math.floor(Math.random() * 1000)}`
+  try {
+    localStorage.setItem(`${NAMED_DRAFT_PREFIX}${draftId}`, JSON.stringify({ content, metadata }))
+  } catch {
+    return null
+  }
+  const index = listDrafts()
+  const entry = { id: draftId, title, savedAt: Date.now() }
+  const existingIdx = index.findIndex((d) => d.id === draftId)
+  if (existingIdx >= 0) {
+    index[existingIdx] = entry
+  } else {
+    index.push(entry)
+  }
+  writeDraftsIndex(index)
+  return draftId
+}
+
+export function loadNamedDraft(id) {
+  try {
+    const raw = localStorage.getItem(`${NAMED_DRAFT_PREFIX}${id}`)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function deleteNamedDraft(id) {
+  try {
+    localStorage.removeItem(`${NAMED_DRAFT_PREFIX}${id}`)
+  } catch {
+    /* localStorage unavailable */
+  }
+  writeDraftsIndex(listDrafts().filter((d) => d.id !== id))
+}
+
 const MARKDOWN_DEBOUNCE_MS = 250
 
 const Editor = forwardRef(function Editor({ onImageInsert, onMarkdownChange }, ref) {
