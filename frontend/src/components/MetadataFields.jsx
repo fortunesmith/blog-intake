@@ -22,11 +22,27 @@ export default function MetadataFields({ metadata, onChange, onBannerImageInsert
 
   // Auto-grow the teaser textarea so its full content is always visible without
   // an internal scrollbar, however many of the 500 characters have been typed.
+  // Also re-measure whenever its width changes (window resize, sm breakpoint
+  // stacking, etc.) since narrower text re-wraps into more lines.
   useEffect(() => {
     const el = teaserRef.current
     if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
+
+    const resize = () => {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }
+    resize()
+
+    let lastWidth = el.offsetWidth
+    const observer = new ResizeObserver(() => {
+      if (el.offsetWidth !== lastWidth) {
+        lastWidth = el.offsetWidth
+        resize()
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
   }, [metadata.teaser])
 
   const toggleCategory = (option) => {
