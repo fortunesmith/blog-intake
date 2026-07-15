@@ -39,13 +39,13 @@ export default function DraftManager({ drafts, onLoad, onDelete, onClose }) {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4 max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between shrink-0">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">Saved drafts</h3>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {sorted.length === 0 ? (
-          <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+          <p className="text-sm text-gray-500 dark:text-gray-400 italic">
             No saved drafts yet. Use "Save Draft" in the header to save your current post here.
           </p>
         ) : (
@@ -56,10 +56,10 @@ export default function DraftManager({ drafts, onLoad, onDelete, onClose }) {
                 className="flex items-center justify-between gap-2 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <FileText className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                  <FileText className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{draft.title || 'Untitled draft'}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">{formatSavedAt(draft.savedAt)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatSavedAt(draft.savedAt)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">

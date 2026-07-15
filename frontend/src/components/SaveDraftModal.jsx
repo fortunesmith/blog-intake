@@ -35,10 +35,10 @@ export default function SaveDraftModal({ defaultName, description, saveLabel = '
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-            <Save className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <Save className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             Save draft
           </h3>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>

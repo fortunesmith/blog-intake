@@ -21,7 +21,7 @@ export default function ConfirmModal({ title, message, confirmLabel = 'Confirm',
             </div>
             <h3 className="font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors mt-0.5">
+          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors mt-0.5">
             <X className="w-4 h-4" />
           </button>
         </div>

@@ -20,7 +20,7 @@ const VIEW_MODES = ['edit', 'split', 'preview']
 const UNRESOLVED_IMAGE_RE = /!\[[^\]]*\]\(blob:/
 
 function emptyMetadata() {
-  return { title: '', author: '', date: '', bannerFilename: '', bannerObjectUrl: '', teaser: '', tags: '' }
+  return { title: '', author: '', date: '', bannerFilename: '', bannerObjectUrl: '', teaser: '', categories: [] }
 }
 
 function initMetadata() {
@@ -131,20 +131,19 @@ export default function App() {
   const yamlLiteralBlock = (str) =>
     '|\n' + str.split('\n').map((line) => `  ${line}`).join('\n')
 
-  // Comma-separated input -> a YAML block sequence, one quoted+escaped
-  // scalar per non-empty trimmed tag.
-  const yamlSequence = (csv) =>
-    csv.split(',').map((t) => t.trim()).filter(Boolean)
-      .map((t) => `  - "${yamlEscape(t)}"`).join('\n')
+  // A list of strings -> a YAML block sequence, one quoted+escaped scalar
+  // per item.
+  const yamlSequence = (items) =>
+    items.map((t) => `  - "${yamlEscape(t)}"`).join('\n')
 
   const buildExportMarkdown = () => {
     let md = markdownContent
     imageMapRef.current.forEach((filename, objectUrl) => {
       md = md.split(objectUrl).join(filename)
     })
-    const { title, author, date, bannerFilename, teaser, tags } = metadata
-    const tagLines = tags ? yamlSequence(tags) : ''
-    if (title || author || date || bannerFilename || teaser || tagLines) {
+    const { title, author, date, bannerFilename, teaser, categories } = metadata
+    const categoryLines = categories.length ? yamlSequence(categories) : ''
+    if (title || author || date || bannerFilename || teaser || categoryLines) {
       const lines = ['---']
       if (title)         lines.push(`title: "${yamlEscape(title)}"`)
       if (author)        lines.push(`author: "${yamlEscape(author)}"`)
@@ -153,7 +152,7 @@ export default function App() {
       if (teaser) {
         lines.push(`description: ${teaser.includes('\n') ? yamlLiteralBlock(teaser) : `"${yamlEscape(teaser)}"`}`)
       }
-      if (tagLines) lines.push('tags:', tagLines)
+      if (categoryLines) lines.push('categories:', categoryLines)
       lines.push('---', '', '')
       md = lines.join('\n') + md
     }
@@ -326,7 +325,7 @@ export default function App() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 h-[53px] px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <PenLine className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+          <PenLine className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Blog Post Editor</span>
           <div className="w-px h-4 bg-gray-200 dark:bg-gray-700" />
           <button

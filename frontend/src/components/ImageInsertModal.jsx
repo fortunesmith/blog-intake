@@ -52,7 +52,7 @@ export default function ImageInsertModal({ onInsert, onClose }) {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">Insert image</h3>
-          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -82,9 +82,9 @@ export default function ImageInsertModal({ onInsert, onClose }) {
             </div>
           ) : (
             <div className="space-y-2">
-              <ImageIcon className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
+              <ImageIcon className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto" />
               <p className="text-sm text-gray-500 dark:text-gray-400">Click to browse or drag an image here</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">PNG, JPG, GIF, WebP</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">PNG, JPG, GIF, WebP</p>
             </div>
           )}
           <input
@@ -107,7 +107,7 @@ export default function ImageInsertModal({ onInsert, onClose }) {
             onKeyDown={(e) => { if (e.key === 'Enter' && file) handleInsert() }}
             className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
           />
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             The exported Markdown will reference <code className="bg-gray-100 dark:bg-gray-700 dark:text-gray-300 px-1 rounded">{file?.name ?? 'filename.jpg'}</code>.
             Keep the image file alongside the .md when sharing.
           </p>

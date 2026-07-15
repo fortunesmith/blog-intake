@@ -520,7 +520,7 @@ export default function Toolbar({ editor, onImageInsert }) {
 
       {fmt.table && (
         <div className="flex items-center gap-0.5 px-4 py-1.5 border-t border-gray-100 dark:border-gray-700 bg-blue-50 dark:bg-gray-800 flex-wrap select-none">
-          <span className="text-xs font-medium text-gray-400 dark:text-gray-500 mr-1 flex items-center gap-1">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1 flex items-center gap-1">
             <Rows2 className="w-3.5 h-3.5" /> Rows
           </span>
           <ToolbarBtn onClick={() => editor.chain().focus().addRowBefore().run()} title="Add row above">
@@ -535,7 +535,7 @@ export default function Toolbar({ editor, onImageInsert }) {
 
           <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
 
-          <span className="text-xs font-medium text-gray-400 dark:text-gray-500 mr-1 flex items-center gap-1">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1 flex items-center gap-1">
             <Columns2 className="w-3.5 h-3.5" /> Cols
           </span>
           <ToolbarBtn onClick={() => editor.chain().focus().addColumnBefore().run()} title="Add column before">

@@ -1,13 +1,41 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ImageIcon, X, TriangleAlert } from 'lucide-react'
 
 const BANNER_WIDTH = 1024
 const BANNER_HEIGHT = 342
 
+const BLOG_CATEGORIES = [
+  'Newsletters',
+  'Partner Stories',
+  'Developer Stories',
+  'Events',
+  'Product Announcements',
+]
+const MAX_CATEGORIES = 2
+const TEASER_MAX_LENGTH = 500
+
 export default function MetadataFields({ metadata, onChange, onBannerImageInsert, onBannerImageRemove }) {
   const handle = (field) => (e) => onChange({ ...metadata, [field]: e.target.value })
   const bannerInputRef = useRef(null)
+  const teaserRef = useRef(null)
   const [bannerError, setBannerError] = useState(null)
+
+  // Auto-grow the teaser textarea so its full content is always visible without
+  // an internal scrollbar, however many of the 500 characters have been typed.
+  useEffect(() => {
+    const el = teaserRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [metadata.teaser])
+
+  const toggleCategory = (option) => {
+    const selected = metadata.categories.includes(option)
+    const next = selected
+      ? metadata.categories.filter((c) => c !== option)
+      : [...metadata.categories, option]
+    onChange({ ...metadata, categories: next })
+  }
 
   const handleBannerFile = (file) => {
     if (!file || !file.type.startsWith('image/')) return
@@ -45,46 +73,99 @@ export default function MetadataFields({ metadata, onChange, onBannerImageInsert
   }
 
   return (
-    <div className="border-b border-gray-200 dark:border-gray-700 px-8 py-5 space-y-4">
+    <div className="border-b border-gray-200 dark:border-gray-700 px-8 py-6 space-y-5">
+      {/* Title — its own prominent block, well separated from the byline below */}
       <input
         type="text"
         placeholder="Post title"
         value={metadata.title}
         onChange={handle('title')}
-        className="w-full text-2xl font-semibold text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none bg-transparent"
+        className="w-full text-4xl font-bold text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent"
       />
-      {/*
-        The Author column below is a fixed sm:w-56 (matching the Banner image
-        column in the row underneath), and both rows share the same gap-5, so
-        Date and Teaser start at the same horizontal position across rows.
-      */}
-      <div className="flex items-center gap-5">
-        <div className="sm:w-56 shrink-0 flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide shrink-0">Author</label>
+
+      {/* Byline — Author + Date, given more visual weight than a typical form field */}
+      <div className="flex items-baseline gap-6 pb-5 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-baseline gap-2">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">By</label>
           <input
             type="text"
             placeholder="Your name"
             value={metadata.author}
             onChange={handle('author')}
-            className="flex-1 min-w-0 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none bg-transparent border-b border-transparent focus:border-gray-300 dark:focus:border-gray-600 pb-0.5 transition-colors"
+            className="min-w-[12rem] text-base font-medium text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent border-b border-transparent focus:border-gray-300 dark:focus:border-gray-600 pb-0.5 transition-colors"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Date</label>
+        <div className="flex items-baseline gap-2">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Date</label>
           <input
             type="date"
             value={metadata.date}
             onChange={handle('date')}
-            className="text-sm text-gray-700 dark:text-gray-300 focus:outline-none bg-transparent border-b border-transparent focus:border-gray-300 dark:focus:border-gray-600 pb-0.5 transition-colors"
+            className="text-base text-gray-700 dark:text-gray-300 focus:outline-none bg-transparent border-b border-transparent focus:border-gray-300 dark:focus:border-gray-600 pb-0.5 transition-colors"
           />
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-5 pt-3 mt-1 border-t border-gray-100 dark:border-gray-800">
+      {/*
+        Supporting metadata panel — Teaser, Category, and Banner are grouped inside a
+        single bordered card so they always read as one connected unit, no matter how
+        wide the screen is. Ordered to roughly match when they're actually filled in
+        during writing (teaser/category before the banner, which is usually finalized last).
+      */}
+      <div className="flex flex-col sm:flex-row gap-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+        {/* Teaser */}
+        <div className="flex-1 space-y-1">
+          <div className="flex items-baseline justify-between">
+            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Teaser</label>
+            <span className="text-xs text-gray-400 dark:text-gray-500">{metadata.teaser.length}/{TEASER_MAX_LENGTH}</span>
+          </div>
+          <textarea
+            ref={teaserRef}
+            rows={2}
+            maxLength={TEASER_MAX_LENGTH}
+            placeholder="A short excerpt shown in post listings"
+            value={metadata.teaser}
+            onChange={handle('teaser')}
+            className="w-full text-base leading-[1.8] text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-gray-300 dark:focus:border-gray-600 py-0.5 resize-none overflow-hidden transition-colors"
+          />
+        </div>
+
+        {/* Blog category */}
+        <div className="sm:w-56 shrink-0 space-y-1">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            Blog Category <span className="text-gray-400 dark:text-gray-500">(1-{MAX_CATEGORIES})</span>
+          </label>
+          <div className="space-y-0.5">
+            {BLOG_CATEGORIES.map((option) => {
+              const checked = metadata.categories.includes(option)
+              const disabled = !checked && metadata.categories.length >= MAX_CATEGORIES
+              return (
+                <label
+                  key={option}
+                  className={`flex items-center gap-1.5 text-sm ${
+                    disabled
+                      ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'text-gray-700 dark:text-gray-300 cursor-pointer'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggleCategory(option)}
+                    className="accent-gray-700 dark:accent-gray-300"
+                  />
+                  {option}
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
         {/* Banner image */}
         <div className="sm:w-56 shrink-0 space-y-1">
-          <label className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-            Banner image <span className="text-gray-300 dark:text-gray-600">({BANNER_WIDTH}&times;{BANNER_HEIGHT})</span>
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            Banner image <span className="text-gray-400 dark:text-gray-500">({BANNER_WIDTH}&times;{BANNER_HEIGHT})</span>
           </label>
           <div
             onClick={() => bannerInputRef.current?.click()}
@@ -108,7 +189,7 @@ export default function MetadataFields({ metadata, onChange, onBannerImageInsert
                 </button>
               </>
             ) : (
-              <div className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
+              <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
                 <ImageIcon className="w-4 h-4" />
                 <span className="text-xs">Click or drop</span>
               </div>
@@ -127,30 +208,6 @@ export default function MetadataFields({ metadata, onChange, onBannerImageInsert
               {bannerError}
             </p>
           )}
-        </div>
-
-        {/* Teaser */}
-        <div className="flex-1 space-y-1">
-          <label className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Teaser</label>
-          <textarea
-            rows={1}
-            placeholder="A short excerpt shown in post listings"
-            value={metadata.teaser}
-            onChange={handle('teaser')}
-            className="w-full text-sm text-gray-700 dark:text-gray-300 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none bg-transparent border-b border-gray-100 dark:border-gray-800 focus:border-gray-300 dark:focus:border-gray-600 py-0.5 resize-none transition-colors"
-          />
-        </div>
-
-        {/* Tags */}
-        <div className="sm:w-56 shrink-0 space-y-1">
-          <label className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">Tags</label>
-          <input
-            type="text"
-            placeholder="tag1, tag2, tag3"
-            value={metadata.tags}
-            onChange={handle('tags')}
-            className="w-full text-sm text-gray-700 dark:text-gray-300 placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none bg-transparent border-b border-gray-100 dark:border-gray-800 focus:border-gray-300 dark:focus:border-gray-600 pb-0.5 transition-colors"
-          />
         </div>
       </div>
     </div>
