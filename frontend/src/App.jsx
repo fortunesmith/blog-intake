@@ -150,7 +150,7 @@ export default function App() {
       if (date)          lines.push(`date: "${yamlEscape(date)}"`)
       if (bannerFilename) lines.push(`banner_image: "${yamlEscape(bannerFilename)}"`)
       if (teaser) {
-        lines.push(`description: ${teaser.includes('\n') ? yamlLiteralBlock(teaser) : `"${yamlEscape(teaser)}"`}`)
+        lines.push(`intro: ${teaser.includes('\n') ? yamlLiteralBlock(teaser) : `"${yamlEscape(teaser)}"`}`)
       }
       if (categoryLines) lines.push('categories:', categoryLines)
       lines.push('---', '', '')
